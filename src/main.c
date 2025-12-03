@@ -1,6 +1,8 @@
 #include "common.h"
 #include "console.h"
 #include "input.h"
+#include "map.h"
+#include "renderer.h"
 
 // 게임 초기화
 void game_init(void) {
@@ -101,16 +103,90 @@ void test_input(void) {
     }
 }
 
+// 맵 테스트 함수
+void test_map(void) {
+    console_clear();
+    
+    printf("=== 맵 시스템 테스트 ===\n\n");
+    printf("맵 파일 로딩 중...\n");
+    
+    Map* map = map_load_from_file("stages/stage1.txt");
+    if (!map) {
+        printf("맵 로드 실패!\n");
+        printf("아무 키나 눌러 종료하세요...\n");
+        while (!input_is_quit_requested()) {
+            input_update();
+            if (input_get_player_input().fireboy.enter || 
+                input_get_player_input().watergirl.enter) {
+                break;
+            }
+        }
+        return;
+    }
+    
+    printf("맵 로드 성공! (크기: %dx%d)\n", map->width, map->height);
+    printf("Fireboy 시작 위치: (%d, %d)\n", map->fireboy_start_x, map->fireboy_start_y);
+    printf("Watergirl 시작 위치: (%d, %d)\n", map->watergirl_start_x, map->watergirl_start_y);
+    printf("\nEnter 키를 눌러 맵을 보세요...\n");
+    
+    // 입력 대기
+    while (!input_is_quit_requested()) {
+        input_update();
+        if (input_get_player_input().fireboy.enter || 
+            input_get_player_input().watergirl.enter) {
+            break;
+        }
+    }
+    
+    // 맵 렌더링
+    if (!input_is_quit_requested()) {
+        renderer_init(80, 25);
+        
+        while (!input_is_quit_requested()) {
+            input_update();
+            
+            // ESC로 종료
+            if (input_get_player_input().fireboy.escape) {
+                break;
+            }
+            
+            // 맵 렌더링 (깜빡임 없이)
+            render_map_no_flicker(map, 0, 0);
+            
+            // HUD 표시 (마지막 줄)
+            console_set_cursor_position(0, 24);
+            console_reset_color();
+            printf("ESC: 종료");
+            
+            fflush(stdout);
+            
+            // 짧은 지연
+#ifdef PLATFORM_WINDOWS
+            Sleep(50);
+#else
+            usleep(50000); // 50ms
+#endif
+        }
+    }
+    
+    map_destroy(map);
+}
+
 // 메인 함수
 int main(void) {
     game_init();
     
-    // 콘솔 테스트
-    test_console();
+    // 콘솔 테스트 (선택적 - 주석 처리 가능)
+    // test_console();
     
-    // 입력 테스트
+    // 입력 테스트 (선택적 - 주석 처리 가능)
+    // if (!input_is_quit_requested()) {
+    //     test_input();
+    // }
+    
+    // 맵 테스트
     if (!input_is_quit_requested()) {
-        test_input();
+        test_map();
     }
     
     game_cleanup();
