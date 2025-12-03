@@ -3,7 +3,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c11 -g
 SRCDIR = src
-SOURCES = $(SRCDIR)/main.c $(SRCDIR)/console.c $(SRCDIR)/input.c $(SRCDIR)/map.c $(SRCDIR)/renderer.c
+SOURCES = $(SRCDIR)/main.c $(SRCDIR)/console.c $(SRCDIR)/input.c $(SRCDIR)/map.c $(SRCDIR)/renderer.c $(SRCDIR)/player.c
 OBJECTS = $(SOURCES:.c=.o)
 
 # 플랫폼별 설정

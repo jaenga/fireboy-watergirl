@@ -187,3 +187,81 @@ void render_map_no_flicker(const Map* map, int camera_x, int camera_y) {
     }
 }
 
+// 깜빡임 없는 맵 렌더링 (플레이어 위치 제외)
+void render_map_no_flicker_with_players(const Map* map, int camera_x, int camera_y,
+                                        int player1_x, int player1_y,
+                                        int player2_x, int player2_y) {
+    if (!map) return;
+    
+    // 타일이 2칸씩 차지하므로 가로는 screen_width / 2만큼만 렌더링
+    int tiles_per_row = screen_width / 2;
+    
+    // 첫 프레임에서는 전체 화면 클리어
+    if (first_frame) {
+        console_clear();
+        first_frame = false;
+    } else {
+        // 이후 프레임에서는 커서만 처음 위치로 이동
+        console_set_cursor_position(0, 0);
+    }
+    
+    // 변경된 타일만 업데이트 (플레이어 위치 제외)
+    for (int y = 0; y < screen_height - 1; y++) {
+        int map_y = camera_y + y;
+        for (int x = 0; x < tiles_per_row; x++) {
+            int map_x = camera_x + x;
+            int buffer_idx = y * tiles_per_row + x;
+            
+            // 플레이어 위치는 건너뛰기
+            if ((map_x == player1_x && map_y == player1_y) ||
+                (map_x == player2_x && map_y == player2_y)) {
+                continue;
+            }
+            
+            TileType current_tile = TILE_EMPTY;
+            if (map_x >= 0 && map_x < map->width && map_y >= 0 && map_y < map->height) {
+                current_tile = map_get_tile(map, map_x, map_y);
+            }
+            
+            // 이전 프레임과 다를 때만 렌더링
+            if (!prev_frame_buffer || prev_frame_buffer[buffer_idx] != current_tile) {
+                render_tile(current_tile, x, y);
+                if (prev_frame_buffer) {
+                    prev_frame_buffer[buffer_idx] = current_tile;
+                }
+            }
+        }
+    }
+}
+
+// 플레이어 렌더링
+void render_player(const Player* player, int camera_x, int camera_y) {
+    if (!player || player->state == PLAYER_STATE_DEAD) {
+        return;
+    }
+    
+    // 화면 좌표로 변환
+    int screen_x = (player->x - camera_x) * 2; // 타일당 2칸
+    int screen_y = player->y - camera_y;
+    
+    // 화면 범위 체크
+    if (screen_x < 0 || screen_x >= screen_width || screen_y < 0 || screen_y >= screen_height - 1) {
+        return;
+    }
+    
+    // 플레이어 캐릭터 렌더링
+    console_set_cursor_position(screen_x, screen_y);
+    
+    if (player->type == PLAYER_FIREBOY) {
+        // Fireboy - 빨간 배경에 노란색 캐릭터
+        console_set_color(COLOR_YELLOW, COLOR_RED);
+        printf("☻ ");
+    } else {
+        // Watergirl - 파란 배경에 청록색 캐릭터
+        console_set_color(COLOR_CYAN, COLOR_BLUE);
+        printf("☺ ");
+    }
+    
+    console_reset_color();
+}
+

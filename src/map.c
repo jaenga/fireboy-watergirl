@@ -143,14 +143,16 @@ bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy) {
     
     switch (tile) {
         case TILE_EMPTY:
-            return false; // 빈 공간은 이동 불가
+            return true; // 공백은 공중 이동 가능
         case TILE_WALL:
+        case TILE_FLOOR:  // 바닥도 벽처럼 통과 불가
             return false;
-        case TILE_FLOOR:
         case TILE_SWITCH:
         case TILE_BOX:
         case TILE_MOVING_PLATFORM:
         case TILE_GEM:
+        case TILE_FIREBOY_START:  // 시작 위치도 이동 가능
+        case TILE_WATERGIRL_START: // 시작 위치도 이동 가능
             return true;
         case TILE_FIRE_TERRAIN:
             return is_fireboy; // Fireboy만 통과 가능
