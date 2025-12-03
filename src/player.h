@@ -29,7 +29,7 @@ typedef struct {
 
 // 함수 선언
 void player_init(Player* player, PlayerType type, int start_x, int start_y);
-void player_update(Player* player, const Map* map, bool left_pressed, bool right_pressed);
+void player_update(Player* player, const Map* map, bool left_pressed, bool right_pressed, bool jump_pressed, float delta_time);
 void player_reset(Player* player, int start_x, int start_y);
 bool player_check_collision(const Player* player, const Map* map, int new_x, int new_y);
 

@@ -21,7 +21,7 @@ endif
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
+	$(CC) $(OBJECTS) -o $(TARGET) $(LDFLAGS) -lm
 
 $(SRCDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@

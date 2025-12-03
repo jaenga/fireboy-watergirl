@@ -170,6 +170,7 @@ void input_update(void) {
             } else if (ch2 == '[') {
                 int ch3 = getch_non_blocking();
                 if (ch3 != -1) {
+                    // 화살표 키 처리 - 불필요한 문자 출력 방지
                     switch (ch3) {
                         case 'A': // 위 화살표 = 점프
                             key_states.fireboy.jump = true;
@@ -185,6 +186,9 @@ void input_update(void) {
                             get_current_time(&last_key_time[0]); // fireboy.left
                             break;
                         // 아래 화살표(B)는 사용 안 함
+                        default:
+                            // 알 수 없는 ESC 시퀀스는 무시 (문자 출력 방지)
+                            break;
                     }
                 }
             }

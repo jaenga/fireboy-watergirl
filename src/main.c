@@ -141,7 +141,7 @@ void test_map(void) {
     
     // 맵 렌더링
     if (!input_is_quit_requested()) {
-        renderer_init(80, 25);
+        renderer_init(80, 30);
         
         while (!input_is_quit_requested()) {
             input_update();
@@ -217,12 +217,15 @@ void game_loop(void) {
     int prev_watergirl_x = watergirl.x;
     int prev_watergirl_y = watergirl.y;
     
-    // 렌더러 초기화
-    renderer_init(80, 25);
+    // 렌더러 초기화 (화면 크기: 가로 80, 세로 30)
+    renderer_init(80, 30);
     
     // 카메라 위치 (현재는 고정, 나중에 플레이어 따라가도록 수정)
     int camera_x = 0;
     int camera_y = 0;
+    
+    // 프레임 타이밍
+    float delta_time = 0.05f; // 50ms = 0.05초 (고정 프레임)
     
     // 게임 루프
     while (!input_is_quit_requested()) {
@@ -237,7 +240,7 @@ void game_loop(void) {
         PlayerInput input = input_get_player_input();
         
         // 디버깅: 입력 상태 및 플레이어 위치 확인 (HUD 아래에 표시)
-        console_set_cursor_position(0, 23);
+        console_set_cursor_position(0, 28);
         console_reset_color();
         printf("Fireboy: ←=%d →=%d ↑=%d | Watergirl: A=%d D=%d W=%d", 
                input.fireboy.left, input.fireboy.right, input.fireboy.jump,
@@ -245,24 +248,25 @@ void game_loop(void) {
         // 공백으로 나머지 공간 채우기
         for (int i = 0; i < 20; i++) printf(" ");
         
-        // 추가 디버깅: 플레이어 위치 (매 프레임)
-        console_set_cursor_position(0, 22);
+        // 추가 디버깅: 플레이어 위치 및 상태 (매 프레임)
+        console_set_cursor_position(0, 27);
         console_reset_color();
-        printf("Fireboy: pos=(%2d,%2d) | Watergirl: pos=(%2d,%2d)", 
-               fireboy.x, fireboy.y, watergirl.x, watergirl.y);
+        printf("Fireboy: pos=(%2d,%2d) vy=%.1f ground=%d | Watergirl: pos=(%2d,%2d) vy=%.1f ground=%d", 
+               fireboy.x, fireboy.y, fireboy.vy, fireboy.is_on_ground,
+               watergirl.x, watergirl.y, watergirl.vy, watergirl.is_on_ground);
         // 공백으로 나머지 공간 채우기
-        for (int i = 0; i < 20; i++) printf(" ");
+        for (int i = 0; i < 5; i++) printf(" ");
         
-        // 플레이어 업데이트 (좌우 이동만)
-        player_update(&fireboy, map, input.fireboy.left, input.fireboy.right);
-        player_update(&watergirl, map, input.watergirl.left, input.watergirl.right);
+        // 플레이어 업데이트 (물리 시스템 포함)
+        player_update(&fireboy, map, input.fireboy.left, input.fireboy.right, input.fireboy.jump, delta_time);
+        player_update(&watergirl, map, input.watergirl.left, input.watergirl.right, input.watergirl.jump, delta_time);
         
         // 플레이어가 이동한 경우 이전 위치의 타일 다시 그리기
         if (prev_fireboy_x != fireboy.x || prev_fireboy_y != fireboy.y) {
             TileType tile = map_get_tile(map, prev_fireboy_x, prev_fireboy_y);
             int screen_x = (prev_fireboy_x - camera_x) * 2;
             int screen_y = prev_fireboy_y - camera_y;
-            if (screen_x >= 0 && screen_x < 80 && screen_y >= 0 && screen_y < 24) {
+            if (screen_x >= 0 && screen_x < 80 && screen_y >= 0 && screen_y < 29) {
                 render_tile(tile, (prev_fireboy_x - camera_x), (prev_fireboy_y - camera_y));
             }
             prev_fireboy_x = fireboy.x;
@@ -273,7 +277,7 @@ void game_loop(void) {
             TileType tile = map_get_tile(map, prev_watergirl_x, prev_watergirl_y);
             int screen_x = (prev_watergirl_x - camera_x) * 2;
             int screen_y = prev_watergirl_y - camera_y;
-            if (screen_x >= 0 && screen_x < 80 && screen_y >= 0 && screen_y < 24) {
+            if (screen_x >= 0 && screen_x < 80 && screen_y >= 0 && screen_y < 29) {
                 render_tile(tile, (prev_watergirl_x - camera_x), (prev_watergirl_y - camera_y));
             }
             prev_watergirl_x = watergirl.x;
@@ -290,7 +294,7 @@ void game_loop(void) {
         render_player(&watergirl, camera_x, camera_y);
         
         // HUD 표시 (마지막 줄)
-        console_set_cursor_position(0, 24);
+        console_set_cursor_position(0, 29);
         console_reset_color();
         printf("Fireboy: ← → 이동 ↑ 점프 | Watergirl: A D 이동 W 점프 | ESC: 종료");
         // 공백으로 나머지 공간 채우기
