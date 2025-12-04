@@ -19,11 +19,10 @@ Map* map_create(int width, int height) {
     for (int i = 0; i < MAX_BOXES; i++) {
         map->boxes[i].x = 0;
         map->boxes[i].y = 0;
-        map->boxes[i].vy = 0.0f;  // 초기 속도 0
+        map->boxes[i].vy = 0.0f;
         map->boxes[i].active = false;
     }
     
-    // 스위치/도어 초기화
     map->switch_count = 0;
     for (int i = 0; i < MAX_SWITCHES; i++) {
         map->switches[i].x = 0;
@@ -38,7 +37,6 @@ Map* map_create(int width, int height) {
         map->doors[i].is_open = false;
     }
     
-    // 이동 발판 초기화
     map->platform_count = 0;
     for (int i = 0; i < MAX_PLATFORMS; i++) {
         map->platforms[i].x = 0.0f;
@@ -79,8 +77,6 @@ Map* map_create(int width, int height) {
     
     return map;
 }
-
-// 맵 메모리 해제
 void map_destroy(Map* map) {
     if (!map) return;
     
@@ -425,21 +421,6 @@ void map_update_boxes(Map* map, float delta_time) {
             }
         }
     }
-}
-
-// 상자 상태 리셋 (맵 리셋 시 호출)
-void map_reset_boxes(Map* map) {
-    if (!map) return;
-    
-    // 모든 상자의 속도를 0으로 초기화
-    for (int i = 0; i < map->box_count; i++) {
-        if (map->boxes[i].active) {
-            map->boxes[i].vy = 0.0f;
-        }
-    }
-    
-    // static 변수 리셋을 위해 중력 업데이트를 한 번 호출 (누적값 초기화 효과)
-    // 실제로는 다음 프레임부터 중력이 적용됨
 }
 
 // 스위치/도어 관련 헬퍼 구현

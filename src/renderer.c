@@ -43,8 +43,7 @@ void renderer_cleanup(void) {
     }
 }
 
-// 타일을 화면에 렌더링 (유니코드 문자 + 배경색 사용, 타일당 2칸)
-// map과 map_x, map_y를 전달하면 스위치/도어 상태를 확인하여 색상 변경
+// 타일을 화면에 렌더링 (간단한 wrapper)
 void render_tile(TileType tile, int x, int y) {
     render_tile_with_map(tile, x, y, NULL, -1, -1);
 }
@@ -166,80 +165,6 @@ void render_tile_with_map(TileType tile, int screen_x, int screen_y, const Map* 
     }
     
     console_set_color(COLOR_WHITE, COLOR_BLACK); // 색상 리셋
-}
-
-// 맵 렌더링
-void render_map(const Map* map, int camera_x, int camera_y) {
-    if (!map) return;
-    
-    // 타일이 2칸씩 차지하므로 가로는 screen_width / 2만큼만 렌더링
-    int tiles_per_row = screen_width / 2;
-    
-    // 카메라 위치 기반으로 맵의 일부만 렌더링
-    for (int y = 0; y < screen_height - 1; y++) { // 마지막 줄은 HUD용으로 남김
-        int map_y = camera_y + y;
-        for (int x = 0; x < tiles_per_row; x++) {
-            int map_x = camera_x + x;
-            
-            if (map_x >= 0 && map_x < map->width && map_y >= 0 && map_y < map->height) {
-                TileType tile = map_get_tile(map, map_x, map_y);
-                render_tile(tile, x, y);
-            } else {
-                // 맵 밖 영역은 빈 공간으로
-                console_set_cursor_position(x * 2, y);
-                console_set_color(COLOR_WHITE, COLOR_BLACK);
-                printf("  ");
-            }
-        }
-    }
-}
-
-// 깜빡임 없는 맵 렌더링 (더블 버퍼링)
-void render_map_no_flicker(const Map* map, int camera_x, int camera_y) {
-    if (!map) return;
-    
-    // 타일이 2칸씩 차지하므로 가로는 screen_width / 2만큼만 렌더링
-    int tiles_per_row = screen_width / 2;
-    
-    // 첫 프레임에서는 전체 화면 클리어
-    if (first_frame) {
-        console_clear();
-        first_frame = false;
-    } else {
-        // 이후 프레임에서는 커서만 처음 위치로 이동
-        console_set_cursor_position(0, 0);
-    }
-    
-    // 변경된 타일만 업데이트
-    for (int y = 0; y < screen_height - 1; y++) {
-        int map_y = camera_y + y;
-        for (int x = 0; x < tiles_per_row; x++) {
-            int map_x = camera_x + x;
-            int buffer_idx = y * tiles_per_row + x;
-            
-            TileType current_tile = TILE_EMPTY;
-            if (map_x >= 0 && map_x < map->width && map_y >= 0 && map_y < map->height) {
-                current_tile = map_get_tile(map, map_x, map_y);
-            }
-            
-            // 이전 프레임과 다를 때만 렌더링
-            // 스위치/도어는 상태가 바뀔 수 있으므로 항상 체크
-            bool needs_render = false;
-            if (!prev_frame_buffer || prev_frame_buffer[buffer_idx] != current_tile) {
-                needs_render = true;
-            } else if (current_tile == TILE_SWITCH || current_tile == TILE_DOOR) {
-                // 스위치/도어는 타일 타입이 같아도 상태가 바뀔 수 있음
-                needs_render = true;
-            }
-            
-            if (needs_render) {
-                render_tile_with_map(current_tile, x, y, map, map_x, map_y);
-                if (prev_frame_buffer) {
-                    prev_frame_buffer[buffer_idx] = current_tile;
-                }
-            }
-        }
-    }
 }
 
 // 깜빡임 없는 맵 렌더링 (플레이어 위치 제외)
