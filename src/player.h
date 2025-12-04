@@ -29,8 +29,14 @@ typedef struct {
 
 // 함수 선언
 void player_init(Player* player, PlayerType type, int start_x, int start_y);
-void player_update(Player* player, const Map* map, bool left_pressed, bool right_pressed, bool jump_pressed, float delta_time);
+void player_update(Player* player, Map* map, bool left_pressed, bool right_pressed, bool jump_pressed, float delta_time);
 void player_reset(Player* player, int start_x, int start_y);
 bool player_check_collision(const Player* player, const Map* map, int new_x, int new_y);
+
+// 보석 카운트 조회
+int player_get_fire_gem_count(void);
+int player_get_water_gem_count(void);
+int player_get_total_gem_count(void);
+void player_reset_gem_count(void);
 
 #endif // PLAYER_H

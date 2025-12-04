@@ -25,4 +25,10 @@
 #define MAX_MAP_HEIGHT 50
 #define MAX_STAGE_NAME_LENGTH 50
 
+// 오브젝트 관련 상수
+#define MAX_BOXES 50      // 한 스테이지에서 관리할 수 있는 최대 상자 개수
+#define MAX_SWITCHES 20   // 한 스테이지에서 관리할 수 있는 최대 스위치 개수
+#define MAX_DOORS 20      // 한 스테이지에서 관리할 수 있는 최대 도어 개수
+#define MAX_PLATFORMS 20  // 한 스테이지에서 관리할 수 있는 최대 이동 발판 개수
+
 #endif // COMMON_H

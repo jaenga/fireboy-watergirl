@@ -10,6 +10,27 @@
 #define MAX_FALL_SPEED 20.0f      // 최대 낙하 속도 (타일/초)
 #define GROUND_CHECK_OFFSET 0.1f  // 지상 체크 오프셋
 
+// 보석 카운트 (세션 전체에서 누적)
+static int g_fire_gem_count = 0;
+static int g_water_gem_count = 0;
+
+int player_get_fire_gem_count(void) {
+    return g_fire_gem_count;
+}
+
+int player_get_water_gem_count(void) {
+    return g_water_gem_count;
+}
+
+int player_get_total_gem_count(void) {
+    return g_fire_gem_count + g_water_gem_count;
+}
+
+void player_reset_gem_count(void) {
+    g_fire_gem_count = 0;
+    g_water_gem_count = 0;
+}
+
 // 플레이어 초기화
 void player_init(Player* player, PlayerType type, int start_x, int start_y) {
     if (!player) return;
@@ -67,6 +88,18 @@ static bool check_ground(const Map* map, int x, int y, bool is_fireboy) {
         return true;
     }
     
+    // 이동 발판이 바로 아래에 있으면 지면으로 간주
+    if (map) {
+        for (int i = 0; i < map->platform_count; i++) {
+            if (!map->platforms[i].active) continue;
+            int px = (int)roundf(map->platforms[i].x);
+            int py = (int)roundf(map->platforms[i].y);
+            if (px == x && py == y + 1) {
+                return true;
+            }
+        }
+    }
+    
     // 공백이면 공중
     if (tile_below == TILE_EMPTY) {
         return false;
@@ -76,31 +109,47 @@ static bool check_ground(const Map* map, int x, int y, bool is_fireboy) {
     return true;
 }
 
-// 천장에 닿았는지 확인
-static bool check_ceiling(const Map* map, int x, int y, bool is_fireboy) {
-    (void)is_fireboy; // 나중에 속성 지형 고려 시 사용
-    if (y - 1 < 0) {
-        return false; // 맵 밖
-    }
-    
-    TileType tile_above = map_get_tile(map, x, y - 1);
-    
-    // 벽이나 바닥이 위에 있으면 천장 충돌
-    if (tile_above == TILE_WALL || tile_above == TILE_FLOOR) {
-        return true;
-    }
-    
-    return false;
-}
-
 // 플레이어 업데이트 (입력 처리, 물리, 이동)
-void player_update(Player* player, const Map* map, bool left_pressed, bool right_pressed, bool jump_pressed, float delta_time) {
+void player_update(Player* player, Map* map, bool left_pressed, bool right_pressed, bool jump_pressed, float delta_time) {
     if (!player || !map || player->state == PLAYER_STATE_DEAD) {
         return;
     }
     
     bool is_fireboy = (player->type == PLAYER_FIREBOY);
     int player_idx = is_fireboy ? 0 : 1; // 플레이어 인덱스
+    
+    // 속성 지형 판정 (사망 체크)
+    // 현재 위치의 타일 확인
+    TileType current_tile = map_get_tile(map, player->x, player->y);
+    
+    // 바로 아래 타일도 확인
+    TileType tile_below = TILE_EMPTY;
+    if (player->y + 1 < map->height) {
+        tile_below = map_get_tile(map, player->x, player->y + 1);
+    }
+    
+    // Fireboy가 물 지형에 닿으면 사망 (현재 위치 또는 발 밑)
+    if (is_fireboy && (current_tile == TILE_WATER_TERRAIN || tile_below == TILE_WATER_TERRAIN)) {
+        player->state = PLAYER_STATE_DEAD;
+        return;
+    }
+    
+    // Watergirl이 불 지형에 닿으면 사망 (현재 위치 또는 발 밑)
+    if (!is_fireboy && (current_tile == TILE_FIRE_TERRAIN || tile_below == TILE_FIRE_TERRAIN)) {
+        player->state = PLAYER_STATE_DEAD;
+        return;
+    }
+    
+    // 보석 수집 처리
+    if (is_fireboy && current_tile == TILE_FIRE_GEM) {
+        // Fireboy 전용 보석 수집 → 타일 제거 + 카운트 증가
+        map_set_tile(map, player->x, player->y, TILE_EMPTY);
+        g_fire_gem_count++;
+    } else if (!is_fireboy && current_tile == TILE_WATER_GEM) {
+        // Watergirl 전용 보석 수집 → 타일 제거 + 카운트 증가
+        map_set_tile(map, player->x, player->y, TILE_EMPTY);
+        g_water_gem_count++;
+    }
     
     // 지상 상태 확인
     player->is_on_ground = check_ground(map, player->x, player->y, is_fireboy);
@@ -161,6 +210,39 @@ void player_update(Player* player, const Map* map, bool left_pressed, bool right
                     vx_accumulator[player_idx] = 0.0f;
                     break;
                 }
+
+                // 상자 밀기 처리
+                if (target_tile == TILE_BOX) {
+                    int box_index = map_find_box(map, new_x, player->y);
+                    int box_new_x = new_x + 1; // 오른쪽으로 한 칸
+                    if (box_index >= 0 && box_new_x >= 0 && box_new_x < map->width) {
+                        // 상자를 밀 수 있는지 확인 (새 위치는 비어 있거나 스위치여야 함)
+                        TileType box_target = map_get_tile(map, box_new_x, player->y);
+                        if ((box_target == TILE_EMPTY || box_target == TILE_SWITCH) &&
+                            map_move_box(map, box_index, box_new_x, player->y)) {
+                            // 상자 이동 성공 시 플레이어는 상자 원래 자리로 이동 (상자와 플레이어 사이 간격 유지)
+                            player->x = new_x;
+                            vx_accumulator[player_idx] -= move_step;
+                            continue;
+                        }
+                    }
+                    // 밀 수 없으면 이동 불가
+                    vx_accumulator[player_idx] = 0.0f;
+                    break;
+                }
+                
+                // 속성 지형 판정 (사망 체크)
+                // Fireboy가 물 지형에 닿으면 사망
+                if (is_fireboy && target_tile == TILE_WATER_TERRAIN) {
+                    player->state = PLAYER_STATE_DEAD;
+                    return;
+                }
+                
+                // Watergirl이 불 지형에 닿으면 사망
+                if (!is_fireboy && target_tile == TILE_FIRE_TERRAIN) {
+                    player->state = PLAYER_STATE_DEAD;
+                    return;
+                }
                 
                 // 바닥 타일은 지상에 있을 때만 막힘 (공중에서는 통과 가능)
                 if (target_tile == TILE_FLOOR && player->is_on_ground) {
@@ -187,6 +269,38 @@ void player_update(Player* player, const Map* map, bool left_pressed, bool right
                 if (target_tile == TILE_WALL) {
                     vx_accumulator[player_idx] = 0.0f;
                     break;
+                }
+
+                // 상자 밀기 처리
+                if (target_tile == TILE_BOX) {
+                    int box_index = map_find_box(map, new_x, player->y);
+                    int box_new_x = new_x - 1; // 왼쪽으로 한 칸
+                    if (box_index >= 0 && box_new_x >= 0 && box_new_x < map->width) {
+                        // 상자를 밀 수 있는지 확인 (새 위치는 비어 있거나 스위치여야 함)
+                        TileType box_target = map_get_tile(map, box_new_x, player->y);
+                        if ((box_target == TILE_EMPTY || box_target == TILE_SWITCH) &&
+                            map_move_box(map, box_index, box_new_x, player->y)) {
+                            // 상자 이동 성공 시 플레이어는 상자 원래 자리로 이동 (상자와 플레이어 사이 간격 유지)
+                            player->x = new_x;
+                            vx_accumulator[player_idx] += move_step; // 음수이므로 더하기
+                            continue;
+                        }
+                    }
+                    vx_accumulator[player_idx] = 0.0f;
+                    break;
+                }
+                
+                // 속성 지형 판정 (사망 체크)
+                // Fireboy가 물 지형에 닿으면 사망
+                if (is_fireboy && target_tile == TILE_WATER_TERRAIN) {
+                    player->state = PLAYER_STATE_DEAD;
+                    return;
+                }
+                
+                // Watergirl이 불 지형에 닿으면 사망
+                if (!is_fireboy && target_tile == TILE_FIRE_TERRAIN) {
+                    player->state = PLAYER_STATE_DEAD;
+                    return;
                 }
                 
                 // 바닥 타일은 지상에 있을 때만 막힘 (공중에서는 통과 가능)
@@ -302,11 +416,11 @@ void player_update(Player* player, const Map* map, bool left_pressed, bool right
                 vy_accumulator[player_idx] = 0.0f;
                 break;
             }
-            
-            bool ceiling = check_ceiling(map, player->x, new_y, is_fireboy);
-            if (ceiling) {
-                // 천장에 닿으면 속도 0으로
-                player->y = new_y + 1;
+
+            // 점프할 목표 위치의 타일을 직접 확인해서 천장 충돌 판정
+            TileType tile_above = map_get_tile(map, player->x, new_y);
+            if (tile_above == TILE_WALL || tile_above == TILE_FLOOR) {
+                // 바로 위 타일이 벽/바닥이면 그 아래 칸(현재 위치)에 딱 붙게 멈춤
                 player->vy = 0;
                 vy_accumulator[player_idx] = 0.0f;
                 break;

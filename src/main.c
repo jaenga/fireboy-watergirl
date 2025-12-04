@@ -180,7 +180,8 @@ void game_loop(void) {
     printf("=== 게임 시작 ===\n\n");
     printf("맵 파일 로딩 중...\n");
     
-    Map* map = map_load_from_file("stages/stage1.txt");
+    const char* stage_path = "stages/stage1.txt";
+    Map* map = map_load_from_file(stage_path);
     if (!map) {
         printf("맵 로드 실패!\n");
         printf("아무 키나 눌러 종료하세요...\n");
@@ -210,6 +211,9 @@ void game_loop(void) {
     Player fireboy, watergirl;
     player_init(&fireboy, PLAYER_FIREBOY, map->fireboy_start_x, map->fireboy_start_y);
     player_init(&watergirl, PLAYER_WATERGIRL, map->watergirl_start_x, map->watergirl_start_y);
+    
+    // 사망 횟수 카운트 (전체 누적)
+    int death_count = 0;
     
     // 플레이어 이전 위치 추적 (렌더링을 위해)
     int prev_fireboy_x = fireboy.x;
@@ -251,15 +255,75 @@ void game_loop(void) {
         // 추가 디버깅: 플레이어 위치 및 상태 (매 프레임)
         console_set_cursor_position(0, 27);
         console_reset_color();
-        printf("Fireboy: pos=(%2d,%2d) vy=%.1f ground=%d | Watergirl: pos=(%2d,%2d) vy=%.1f ground=%d", 
+        int fire_gems = player_get_fire_gem_count();
+        int water_gems = player_get_water_gem_count();
+        int total_gems = player_get_total_gem_count();
+        printf("Fireboy: pos=(%2d,%2d) vy=%.1f ground=%d | Watergirl: pos=(%2d,%2d) vy=%.1f ground=%d | 사망: %d회 | 보석 F:%d W:%d 합:%d", 
                fireboy.x, fireboy.y, fireboy.vy, fireboy.is_on_ground,
-               watergirl.x, watergirl.y, watergirl.vy, watergirl.is_on_ground);
+               watergirl.x, watergirl.y, watergirl.vy, watergirl.is_on_ground,
+               death_count, fire_gems, water_gems, total_gems);
         // 공백으로 나머지 공간 채우기
         for (int i = 0; i < 5; i++) printf(" ");
+        
+        // 이동 발판 업데이트 (플레이어보다 먼저 업데이트하여 플레이어를 함께 이동)
+        map_update_platforms(map, delta_time, &fireboy, &watergirl);
         
         // 플레이어 업데이트 (물리 시스템 포함)
         player_update(&fireboy, map, input.fireboy.left, input.fireboy.right, input.fireboy.jump, delta_time);
         player_update(&watergirl, map, input.watergirl.left, input.watergirl.right, input.watergirl.jump, delta_time);
+
+        // 플레이어가 죽었는지 확인하고 리셋
+        if (fireboy.state == PLAYER_STATE_DEAD || watergirl.state == PLAYER_STATE_DEAD) {
+            // 사망 횟수 증가
+            death_count++;
+            
+            // 사망 메시지 출력
+            console_set_cursor_position(0, 15);
+            console_set_color(COLOR_RED, COLOR_BLACK);
+            if (fireboy.state == PLAYER_STATE_DEAD) {
+                printf("              💀 Fireboy 사망! 사망 횟수: %d회 - 재시작...              ", death_count);
+            } else {
+                printf("              💀 Watergirl 사망! 사망 횟수: %d회 - 재시작...              ", death_count);
+            }
+            console_reset_color();
+            fflush(stdout);
+            
+            // 0.5초 대기
+            #ifdef PLATFORM_WINDOWS
+            Sleep(500);
+            #else
+            usleep(500000);
+            #endif
+            
+            // 맵 해제
+            map_destroy(map);
+            
+            // 맵 다시 로드
+            map = map_load_from_file(stage_path);
+            if (!map) {
+                fprintf(stderr, "맵 재로드 실패: %s\n", stage_path);
+                break;
+            }
+            
+            // 보석 카운트 리셋 (스테이지 재시작 시 초기화)
+            player_reset_gem_count();
+            
+            // 플레이어 위치 리셋 (시작 위치로 복귀)
+            player_init(&fireboy, PLAYER_FIREBOY, map->fireboy_start_x, map->fireboy_start_y);
+            player_init(&watergirl, PLAYER_WATERGIRL, map->watergirl_start_x, map->watergirl_start_y);
+            
+            // 이전 위치 업데이트
+            prev_fireboy_x = fireboy.x;
+            prev_fireboy_y = fireboy.y;
+            prev_watergirl_x = watergirl.x;
+            prev_watergirl_y = watergirl.y;
+            
+            // 화면 초기화 후 맵 전체 재렌더링
+            console_clear();
+            renderer_init(80, 30);
+            
+            continue;
+        }
         
         // 플레이어가 이동한 경우 이전 위치의 타일 다시 그리기
         if (prev_fireboy_x != fireboy.x || prev_fireboy_y != fireboy.y) {

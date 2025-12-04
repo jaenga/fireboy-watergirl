@@ -1,4 +1,6 @@
 #include "map.h"
+#include "player.h"
+#include <math.h>
 
 // 맵 생성
 Map* map_create(int width, int height) {
@@ -13,6 +15,43 @@ Map* map_create(int width, int height) {
     map->watergirl_start_y = 0;
     map->exit_x = 0;
     map->exit_y = 0;
+    map->box_count = 0;
+    for (int i = 0; i < MAX_BOXES; i++) {
+        map->boxes[i].x = 0;
+        map->boxes[i].y = 0;
+        map->boxes[i].vy = 0.0f;  // 초기 속도 0
+        map->boxes[i].active = false;
+    }
+    
+    // 스위치/도어 초기화
+    map->switch_count = 0;
+    for (int i = 0; i < MAX_SWITCHES; i++) {
+        map->switches[i].x = 0;
+        map->switches[i].y = 0;
+        map->switches[i].activated = false;
+    }
+    
+    map->door_count = 0;
+    for (int i = 0; i < MAX_DOORS; i++) {
+        map->doors[i].x = 0;
+        map->doors[i].y = 0;
+        map->doors[i].is_open = false;
+    }
+    
+    // 이동 발판 초기화
+    map->platform_count = 0;
+    for (int i = 0; i < MAX_PLATFORMS; i++) {
+        map->platforms[i].x = 0.0f;
+        map->platforms[i].y = 0.0f;
+        map->platforms[i].vx = 0.0f;
+        map->platforms[i].vy = 0.0f;
+        map->platforms[i].min_x = 0;
+        map->platforms[i].max_x = 0;
+        map->platforms[i].min_y = 0;
+        map->platforms[i].max_y = 0;
+        map->platforms[i].vertical = false;
+        map->platforms[i].active = false;
+    }
     
     // 2D 배열 할당
     map->tiles = (TileType**)malloc(height * sizeof(TileType*));
@@ -109,9 +148,10 @@ Map* map_load_from_file(const char* filename) {
         for (int x = 0; x < width; x++) {
             if (x < len) {
                 char ch = line[x];
-                map->tiles[y][x] = (TileType)ch;
+                TileType tile = (TileType)ch;
+                map->tiles[y][x] = tile;
                 
-                // 특수 타일 위치 저장
+                // 특수 타일 위치 저장 / 오브젝트 정보 기록
                 if (ch == TILE_FIREBOY_START) {
                     map->fireboy_start_x = x;
                     map->fireboy_start_y = y;
@@ -121,6 +161,54 @@ Map* map_load_from_file(const char* filename) {
                 } else if (ch == TILE_EXIT) {
                     map->exit_x = x;
                     map->exit_y = y;
+                } else if (ch == TILE_BOX) {
+                    // 상자 위치 기록
+                    if (map->box_count < MAX_BOXES) {
+                        int idx = map->box_count++;
+                        map->boxes[idx].x = x;
+                        map->boxes[idx].y = y;
+                        map->boxes[idx].vy = 0.0f;  // 초기 속도 0
+                        map->boxes[idx].active = true;
+                    }
+                } else if (ch == TILE_SWITCH) {
+                    // 스위치 위치 기록
+                    if (map->switch_count < MAX_SWITCHES) {
+                        int idx = map->switch_count++;
+                        map->switches[idx].x = x;
+                        map->switches[idx].y = y;
+                        map->switches[idx].activated = false;
+                    }
+                } else if (ch == TILE_DOOR) {
+                    // 도어 위치 기록
+                    if (map->door_count < MAX_DOORS) {
+                        int idx = map->door_count++;
+                        map->doors[idx].x = x;
+                        map->doors[idx].y = y;
+                        map->doors[idx].is_open = false; // 처음엔 닫혀있음
+                    }
+                } else if (ch == TILE_MOVING_PLATFORM) {
+                    // 이동 발판 위치 기록 (기본: 위아래 왕복)
+                    if (map->platform_count < MAX_PLATFORMS) {
+                        int idx = map->platform_count++;
+                        map->platforms[idx].x = (float)x;
+                        map->platforms[idx].y = (float)y;
+                        map->platforms[idx].vx = 0.0f;
+                        map->platforms[idx].vy = -2.0f; // 위로 이동 시작
+                        map->platforms[idx].vertical = true;
+                        // 시작 위치 기준으로 위아래 4칸 범위 내에서 왕복 (맵 안으로 클램프)
+                        int range = 4;
+                        int min_y = y - range;
+                        int max_y = y + range;
+                        if (min_y < 0) min_y = 0;
+                        if (max_y >= map->height) max_y = map->height - 1;
+                        map->platforms[idx].min_y = min_y;
+                        map->platforms[idx].max_y = max_y;
+                        map->platforms[idx].min_x = x;
+                        map->platforms[idx].max_x = x;
+                        map->platforms[idx].active = true;
+                    }
+                    // 발판은 오버레이로만 그려지므로 타일은 빈 칸으로 설정
+                    map->tiles[y][x] = TILE_EMPTY;
                 }
             } else {
                 map->tiles[y][x] = TILE_EMPTY;
@@ -150,7 +238,8 @@ bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy) {
         case TILE_SWITCH:
         case TILE_BOX:
         case TILE_MOVING_PLATFORM:
-        case TILE_GEM:
+        case TILE_FIRE_GEM:
+        case TILE_WATER_GEM:
         case TILE_FIREBOY_START:  // 시작 위치도 이동 가능
         case TILE_WATERGIRL_START: // 시작 위치도 이동 가능
             return true;
@@ -159,8 +248,10 @@ bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy) {
         case TILE_WATER_TERRAIN:
             return !is_fireboy; // Watergirl만 통과 가능
         case TILE_DOOR:
-            // 나중에 스위치와 연결하여 구현
-            return true;
+            // 도어는 열려있으면 통과 가능, 닫혀있으면 막힘
+            // map_update_doors에서 열림 상태에 따라 TILE_EMPTY 또는 TILE_DOOR로 변경됨
+            // 여기서는 타일 타입만 확인하므로, 실제로는 map_update_doors 후에 체크됨
+            return false; // 기본적으로는 막힘 (열려있으면 TILE_EMPTY로 바뀌어서 통과 가능)
         default:
             return true;
     }
@@ -180,5 +271,364 @@ void map_set_tile(Map* map, int x, int y, TileType tile) {
         return;
     }
     map->tiles[y][x] = tile;
+}
+
+// 상자 관련 헬퍼 구현
+int map_get_box_count(const Map* map) {
+    if (!map) return 0;
+    return map->box_count;
+}
+
+int map_get_box_x(const Map* map, int index) {
+    if (!map || index < 0 || index >= map->box_count) return -1;
+    return map->boxes[index].x;
+}
+
+int map_get_box_y(const Map* map, int index) {
+    if (!map || index < 0 || index >= map->box_count) return -1;
+    return map->boxes[index].y;
+}
+
+// (x, y)에 있는 상자의 인덱스를 찾기 (없으면 -1)
+int map_find_box(const Map* map, int x, int y) {
+    if (!map) return -1;
+    for (int i = 0; i < map->box_count; i++) {
+        if (map->boxes[i].active && map->boxes[i].x == x && map->boxes[i].y == y) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// 상자를 새 위치로 이동 (타일 배열과 boxes 배열 동기화)
+bool map_move_box(Map* map, int index, int new_x, int new_y) {
+    if (!map || index < 0 || index >= map->box_count) return false;
+    if (new_x < 0 || new_x >= map->width || new_y < 0 || new_y >= map->height) return false;
+    if (!map->boxes[index].active) return false;
+
+    int old_x = map->boxes[index].x;
+    int old_y = map->boxes[index].y;
+
+    // 새 위치가 비어 있는지 확인
+    TileType target = map_get_tile(map, new_x, new_y);
+    // 공백이거나 스위치 위로는 이동 가능하게 허용
+    // (스위치 타일은 boxes/switches 배열로 따로 추적하므로, 타일 배열에서는 BOX로 덮어써도 됨)
+    if (target != TILE_EMPTY && target != TILE_SWITCH) {
+        return false;
+    }
+
+    // 타일 갱신
+    map_set_tile(map, old_x, old_y, TILE_EMPTY);
+    map_set_tile(map, new_x, new_y, TILE_BOX);
+
+    // 상자 좌표 갱신
+    map->boxes[index].x = new_x;
+    map->boxes[index].y = new_y;
+
+    return true;
+}
+
+// 상자 중력/물리 업데이트 (매 프레임 호출)
+void map_update_boxes(Map* map, float delta_time) {
+    if (!map) return;
+    
+    // 상자 물리 상수 (플레이어와 동일)
+    const float BOX_GRAVITY = 30.0f;         // 중력 가속도
+    const float BOX_MAX_FALL_SPEED = 20.0f;  // 최대 낙하 속도
+    
+    // 각 상자에 대해 중력 적용
+    for (int i = 0; i < map->box_count; i++) {
+        if (!map->boxes[i].active) continue;
+        
+        int box_x = map->boxes[i].x;
+        int box_y = map->boxes[i].y;
+        
+        // 상자 아래 타일 확인 (지상 체크)
+        bool is_on_ground = false;
+        if (box_y + 1 >= map->height) {
+            is_on_ground = true; // 맵 밖 = 바닥에 있음
+        } else {
+            TileType tile_below = map_get_tile(map, box_x, box_y + 1);
+            // 벽, 바닥, 스위치, 다른 상자는 지면으로 간주
+            if (tile_below == TILE_WALL || tile_below == TILE_FLOOR ||
+                tile_below == TILE_SWITCH || tile_below == TILE_BOX) {
+                is_on_ground = true;
+            }
+        }
+        
+        // 중력 적용
+        if (!is_on_ground) {
+            // 공중에 있으면 중력으로 속도 증가
+            map->boxes[i].vy += BOX_GRAVITY * delta_time;
+            // 최대 낙하 속도 제한
+            if (map->boxes[i].vy > BOX_MAX_FALL_SPEED) {
+                map->boxes[i].vy = BOX_MAX_FALL_SPEED;
+            }
+        } else {
+            // 지상에 있으면 수직 속도 0으로
+            if (map->boxes[i].vy > 0) {
+                map->boxes[i].vy = 0;
+            }
+        }
+        
+        // 속도 누적 (플레이어와 동일한 방식)
+        static float vy_accumulator[MAX_BOXES] = {0.0f}; // 각 상자별 속도 누적
+        
+        vy_accumulator[i] += map->boxes[i].vy * delta_time;
+        
+        // 누적된 속도가 1타일 이상이면 이동
+        while (fabsf(vy_accumulator[i]) >= 1.0f) {
+            if (vy_accumulator[i] > 0.0f) {
+                // 아래로 이동 (낙하)
+                int new_y = box_y + 1;
+                if (new_y >= map->height) {
+                    // 맵 밖으로 나가면 멈춤
+                    map->boxes[i].vy = 0;
+                    vy_accumulator[i] = 0.0f;
+                    break;
+                }
+                
+                TileType tile_below = map_get_tile(map, box_x, new_y);
+                
+                // 목적지가 공백이거나 스위치면 계속 낙하
+                if (tile_below == TILE_EMPTY || tile_below == TILE_SWITCH) {
+                    if (map_move_box(map, i, box_x, new_y)) {
+                        box_y = new_y; // 위치 업데이트
+                        vy_accumulator[i] -= 1.0f;
+                        continue; // 계속 낙하
+                    } else {
+                        // 이동 실패 시 멈춤
+                        map->boxes[i].vy = 0;
+                        vy_accumulator[i] = 0.0f;
+                        break;
+                    }
+                }
+                
+                // 벽이나 바닥이 바로 아래에 있으면 착지
+                if (tile_below == TILE_WALL || tile_below == TILE_FLOOR) {
+                    map->boxes[i].vy = 0;
+                    vy_accumulator[i] = 0.0f;
+                    break;
+                }
+                
+                // 다른 상자가 아래에 있으면 착지
+                if (tile_below == TILE_BOX) {
+                    map->boxes[i].vy = 0;
+                    vy_accumulator[i] = 0.0f;
+                    break;
+                }
+                
+                // 기타 경우도 멈춤
+                map->boxes[i].vy = 0;
+                vy_accumulator[i] = 0.0f;
+                break;
+            }
+        }
+    }
+}
+
+// 상자 상태 리셋 (맵 리셋 시 호출)
+void map_reset_boxes(Map* map) {
+    if (!map) return;
+    
+    // 모든 상자의 속도를 0으로 초기화
+    for (int i = 0; i < map->box_count; i++) {
+        if (map->boxes[i].active) {
+            map->boxes[i].vy = 0.0f;
+        }
+    }
+    
+    // static 변수 리셋을 위해 중력 업데이트를 한 번 호출 (누적값 초기화 효과)
+    // 실제로는 다음 프레임부터 중력이 적용됨
+}
+
+// 스위치/도어 관련 헬퍼 구현
+int map_get_switch_count(const Map* map) {
+    if (!map) return 0;
+    return map->switch_count;
+}
+
+int map_get_switch_x(const Map* map, int index) {
+    if (!map || index < 0 || index >= map->switch_count) return -1;
+    return map->switches[index].x;
+}
+
+int map_get_switch_y(const Map* map, int index) {
+    if (!map || index < 0 || index >= map->switch_count) return -1;
+    return map->switches[index].y;
+}
+
+bool map_is_switch_activated(const Map* map, int index) {
+    if (!map || index < 0 || index >= map->switch_count) return false;
+    return map->switches[index].activated;
+}
+
+int map_find_switch(const Map* map, int x, int y) {
+    if (!map) return -1;
+    for (int i = 0; i < map->switch_count; i++) {
+        if (map->switches[i].x == x && map->switches[i].y == y) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// 스위치 활성화 체크 (플레이어나 상자가 스위치 위에 있는지 확인)
+void map_update_switches(Map* map, int fireboy_x, int fireboy_y, int watergirl_x, int watergirl_y) {
+    if (!map) return;
+    
+    for (int i = 0; i < map->switch_count; i++) {
+        int switch_x = map->switches[i].x;
+        int switch_y = map->switches[i].y;
+        
+        // 플레이어가 스위치 위에 있는지 확인
+        bool player_on_switch = (fireboy_x == switch_x && fireboy_y == switch_y) ||
+                                (watergirl_x == switch_x && watergirl_y == switch_y);
+        
+        // 상자가 스위치 위에 있는지 확인
+        bool box_on_switch = false;
+        for (int j = 0; j < map->box_count; j++) {
+            if (map->boxes[j].active && 
+                map->boxes[j].x == switch_x && map->boxes[j].y == switch_y) {
+                box_on_switch = true;
+                break;
+            }
+        }
+        
+        // 플레이어나 상자가 스위치 위에 있으면 활성화
+        map->switches[i].activated = (player_on_switch || box_on_switch);
+    }
+}
+
+// 도어 열림/닫힘 업데이트 (스위치 상태에 따라)
+void map_update_doors(Map* map) {
+    if (!map) return;
+    
+    // 모든 스위치가 활성화되어 있는지 확인 (간단한 버전: 하나라도 활성화되면 모든 도어 열림)
+    bool any_switch_active = false;
+    for (int i = 0; i < map->switch_count; i++) {
+        if (map->switches[i].activated) {
+            any_switch_active = true;
+            break;
+        }
+    }
+    
+    // 모든 도어 상태 업데이트
+    for (int i = 0; i < map->door_count; i++) {
+        map->doors[i].is_open = any_switch_active;
+        
+        // 도어가 열려있으면 타일을 EMPTY로 변경 (통과 가능)
+        // 닫혀있으면 TILE_DOOR로 유지 (벽처럼 막힘)
+        if (map->doors[i].is_open) {
+            map_set_tile(map, map->doors[i].x, map->doors[i].y, TILE_EMPTY);
+        } else {
+            map_set_tile(map, map->doors[i].x, map->doors[i].y, TILE_DOOR);
+        }
+    }
+}
+
+// 이동 발판 업데이트 (좌우/위아래 왕복 + 위에 있는 플레이어 함께 이동)
+void map_update_platforms(Map* map, float delta_time, struct Player* fireboy, struct Player* watergirl) {
+    if (!map) return;
+    
+    for (int i = 0; i < map->platform_count; i++) {
+        if (!map->platforms[i].active) continue;
+        
+        float old_fx = map->platforms[i].x;
+        float old_fy = map->platforms[i].y;
+        int old_x = (int)roundf(old_fx);
+        int old_y = (int)roundf(old_fy);
+        
+        float new_fx = old_fx;
+        float new_fy = old_fy;
+        
+        if (map->platforms[i].vertical) {
+            // 위아래 이동
+            new_fy = old_fy + map->platforms[i].vy * delta_time;
+            
+            // 범위 체크
+            if (new_fy < map->platforms[i].min_y) {
+                new_fy = (float)map->platforms[i].min_y;
+                map->platforms[i].vy = fabsf(map->platforms[i].vy);
+            } else if (new_fy > map->platforms[i].max_y) {
+                new_fy = (float)map->platforms[i].max_y;
+                map->platforms[i].vy = -fabsf(map->platforms[i].vy);
+            }
+            
+            // 벽/바닥 충돌 체크
+            int check_y = (int)roundf(new_fy);
+            if (check_y >= 0 && check_y < map->height) {
+                TileType tile_at_target = map_get_tile(map, old_x, check_y);
+                if (tile_at_target == TILE_WALL || tile_at_target == TILE_FLOOR) {
+                    // 벽이나 바닥에 부딪히면 방향 반전하고 이전 위치 유지
+                    map->platforms[i].vy = -map->platforms[i].vy;
+                    new_fy = old_fy;
+                }
+            }
+        } else {
+            // 좌우 이동
+            new_fx = old_fx + map->platforms[i].vx * delta_time;
+            
+            // 범위 체크
+            if (new_fx < map->platforms[i].min_x) {
+                new_fx = (float)map->platforms[i].min_x;
+                map->platforms[i].vx = fabsf(map->platforms[i].vx);
+            } else if (new_fx > map->platforms[i].max_x) {
+                new_fx = (float)map->platforms[i].max_x;
+                map->platforms[i].vx = -fabsf(map->platforms[i].vx);
+            }
+            
+            // 벽/바닥 충돌 체크
+            int check_x = (int)roundf(new_fx);
+            if (check_x >= 0 && check_x < map->width) {
+                TileType tile_at_target = map_get_tile(map, check_x, old_y);
+                if (tile_at_target == TILE_WALL || tile_at_target == TILE_FLOOR) {
+                    // 벽이나 바닥에 부딪히면 방향 반전하고 이전 위치 유지
+                    map->platforms[i].vx = -map->platforms[i].vx;
+                    new_fx = old_fx;
+                }
+            }
+        }
+        
+        int new_x = (int)roundf(new_fx);
+        int new_y = (int)roundf(new_fy);
+        int delta_x = new_x - old_x;
+        int delta_y = new_y - old_y;
+        
+        // 플레이어를 발판과 함께 이동 (발판 위에 있는 경우)
+        Player* players[2] = { fireboy, watergirl };
+        for (int p = 0; p < 2; p++) {
+            Player* pl = players[p];
+            if (!pl) continue;
+            
+            // 플레이어가 발판 위에 있는지 체크 (발판의 이전 위치 기준)
+            bool on_platform = false;
+            if (pl->x == old_x && pl->y == old_y - 1) {
+                // 발판 바로 위에 서 있음
+                on_platform = true;
+            }
+            
+            // 발판이 움직이면 플레이어도 함께 이동
+            if (on_platform && (delta_x != 0 || delta_y != 0)) {
+                int target_x = pl->x + delta_x;
+                int target_y = pl->y + delta_y;
+                if (target_x >= 0 && target_x < map->width &&
+                    target_y >= 0 && target_y < map->height) {
+                    TileType t = map_get_tile(map, target_x, target_y);
+                    if (t != TILE_WALL && t != TILE_FLOOR && t != TILE_DOOR) {
+                        pl->x = target_x;
+                        pl->y = target_y;
+                        // 발판과 함께 이동할 때 수직 속도를 0으로 (중력 무효화)
+                        pl->vy = 0.0f;
+                        pl->is_on_ground = true;
+                    }
+                }
+            }
+        }
+        
+        // 타일 배열은 건드리지 않음! 렌더러에서 오버레이로 그림
+        map->platforms[i].x = new_fx;
+        map->platforms[i].y = new_fy;
+    }
 }
 
