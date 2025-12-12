@@ -42,7 +42,7 @@ static long time_diff_ms(const struct timespec* t1, const struct timespec* t2) {
 
 // Unix/macOS에서 특수 키 입력 처리
 #ifdef PLATFORM_UNIX
-static int getch_non_blocking(void) {
+int input_getch_non_blocking(void) {
     fd_set readfds;
     struct timeval timeout;
     
@@ -96,6 +96,12 @@ void input_update(void) {
     // 점프 키는 매 프레임 초기화 (한 번만 점프하도록)
     current_input.fireboy.jump = false;
     current_input.watergirl.jump = false;
+    current_input.fireboy.enter = false;
+    current_input.watergirl.enter = false;
+    current_input.fireboy.up = false;
+    current_input.fireboy.down = false;
+    current_input.watergirl.up = false;
+    current_input.watergirl.down = false;
     current_input.fireboy.enter = false;
     
     // 현재 시간 가져오기
@@ -159,35 +165,39 @@ void input_update(void) {
 #else
     // Unix/macOS: 비동기 키 입력 처리 (모든 입력 버퍼 읽기)
     int ch;
-    while ((ch = getch_non_blocking()) != -1) {
+    while ((ch = input_getch_non_blocking()) != -1) {
         // ESC 시퀀스 처리 (화살표 키)
         if (ch == 27) {
-            int ch2 = getch_non_blocking();
+            int ch2 = input_getch_non_blocking();
             if (ch2 == -1) {
                 // ESC 키만 눌림
                 current_input.fireboy.escape = true;
                 quit_requested = true;
             } else if (ch2 == '[') {
-                int ch3 = getch_non_blocking();
+                int ch3 = input_getch_non_blocking();
                 if (ch3 != -1) {
-                    // 화살표 키 처리 - 불필요한 문자 출력 방지
+                    // 화살표 키 처리
                     switch (ch3) {
-                        case 'A': // 위 화살표 = 점프
+                        case 'A': // 위 화살표
+                            key_states.fireboy.up = true;
+                            current_input.fireboy.up = true;
                             key_states.fireboy.jump = true;
-                            current_input.fireboy.jump = true; // 점프는 이번 프레임에만 true
-                            get_current_time(&last_key_time[2]); // fireboy.jump
+                            current_input.fireboy.jump = true;
+                            get_current_time(&last_key_time[2]);
+                            break;
+                        case 'B': // 아래 화살표
+                            key_states.fireboy.down = true;
+                            current_input.fireboy.down = true;
                             break;
                         case 'C': // 오른쪽 화살표
                             key_states.fireboy.right = true;
-                            get_current_time(&last_key_time[1]); // fireboy.right
+                            get_current_time(&last_key_time[1]);
                             break;
                         case 'D': // 왼쪽 화살표
                             key_states.fireboy.left = true;
-                            get_current_time(&last_key_time[0]); // fireboy.left
+                            get_current_time(&last_key_time[0]);
                             break;
-                        // 아래 화살표(B)는 사용 안 함
                         default:
-                            // 알 수 없는 ESC 시퀀스는 무시 (문자 출력 방지)
                             break;
                     }
                 }
@@ -196,23 +206,31 @@ void input_update(void) {
             switch (ch) {
                 case 'w':
                 case 'W':
+                    key_states.watergirl.up = true;
+                    current_input.watergirl.up = true;
                     key_states.watergirl.jump = true;
-                    current_input.watergirl.jump = true; // 점프는 이번 프레임에만 true
-                    get_current_time(&last_key_time[5]); // watergirl.jump
+                    current_input.watergirl.jump = true;
+                    get_current_time(&last_key_time[5]);
+                    break;
+                case 's':
+                case 'S':
+                    key_states.watergirl.down = true;
+                    current_input.watergirl.down = true;
                     break;
                 case 'a':
                 case 'A':
                     key_states.watergirl.left = true;
-                    get_current_time(&last_key_time[3]); // watergirl.left
+                    get_current_time(&last_key_time[3]);
                     break;
                 case 'd':
                 case 'D':
                     key_states.watergirl.right = true;
-                    get_current_time(&last_key_time[4]); // watergirl.right
+                    get_current_time(&last_key_time[4]);
                     break;
-                // S는 사용 안 함, 스페이스바도 사용 안 함
                 case KEY_ENTER:
+                case 13:
                     current_input.fireboy.enter = true;
+                    current_input.watergirl.enter = true;
                     break;
             }
         }
@@ -267,7 +285,7 @@ void input_update(void) {
 bool input_is_key_pressed(char key) {
     // 간단한 문자 키 확인용
     (void)key; // 경고 방지
-    return false; // 나중에 필요시 구현
+    return false;
 }
 
 // 플레이어 입력 가져오기

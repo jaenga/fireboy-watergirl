@@ -11,6 +11,10 @@ static int prev_platform_x[MAX_PLATFORMS];
 static int prev_platform_y[MAX_PLATFORMS];
 static bool prev_platform_valid[MAX_PLATFORMS];
 
+// 토글 플랫폼의 이전 위치 추적
+static int prev_toggle_platform_y[MAX_PLATFORMS];
+static bool prev_toggle_platform_valid[MAX_PLATFORMS];
+
 // 렌더러 초기화
 void renderer_init(int width, int height) {
     screen_width = width;
@@ -43,7 +47,8 @@ void renderer_cleanup(void) {
     }
 }
 
-// 타일을 화면에 렌더링 (간단한 wrapper)
+// 타일을 화면에 렌더링 (유니코드 문자 + 배경색 사용, 타일당 2칸)
+// map과 map_x, map_y를 전달하면 스위치/도어 상태를 확인하여 색상 변경
 void render_tile(TileType tile, int x, int y) {
     render_tile_with_map(tile, x, y, NULL, -1, -1);
 }
@@ -112,16 +117,34 @@ void render_tile_with_map(TileType tile, int screen_x, int screen_y, const Map* 
         case TILE_DOOR:
             // 도어는 열림/닫힘 상태에 따라 색상 변경
             if (map && map_x >= 0 && map_y >= 0) {
-                // 도어가 열려있으면 TILE_EMPTY로 바뀌어서 여기까지 오지 않음
-                // 하지만 닫혀있을 때는 TILE_DOOR로 유지됨
-                // 열림 상태는 map_update_doors에서 타일을 EMPTY로 바꿔서 처리
-                console_set_color(COLOR_MAGENTA, COLOR_BLACK);
-                printf("▤ ");
+                // map->doors에서 해당 위치의 도어 찾기
+                bool is_open = false;
+                for (int i = 0; i < map->door_count; i++) {
+                    if (map->doors[i].x == map_x && map->doors[i].y == map_y) {
+                        is_open = map->doors[i].is_open;
+                        break;
+                    }
+                }
+                
+                if (is_open) {
+                    // 열린 문: 초록색으로 표시
+                    console_set_color(COLOR_GREEN, COLOR_BLACK);
+                    printf("[ ]");
+                } else {
+                    // 닫힌 문: 빨간색으로 표시
+                    console_set_color(COLOR_RED, COLOR_BLACK);
+                    printf("▤ ");
+                }
             } else {
                 // 기본 색상 (Map 정보 없을 때)
-                console_set_color(COLOR_MAGENTA, COLOR_BLACK);
+                console_set_color(COLOR_RED, COLOR_BLACK);
                 printf("▤ ");
             }
+            break;
+            
+        case TILE_VERTICAL_WALL:
+            console_set_color(COLOR_GREEN, COLOR_BLACK);
+            printf("█ "); // 수직 벽 (초록색)
             break;
             
         case TILE_MOVING_PLATFORM:
@@ -165,6 +188,80 @@ void render_tile_with_map(TileType tile, int screen_x, int screen_y, const Map* 
     }
     
     console_set_color(COLOR_WHITE, COLOR_BLACK); // 색상 리셋
+}
+
+// 맵 렌더링
+void render_map(const Map* map, int camera_x, int camera_y) {
+    if (!map) return;
+    
+    // 타일이 2칸씩 차지하므로 가로는 screen_width / 2만큼만 렌더링
+    int tiles_per_row = screen_width / 2;
+    
+    // 카메라 위치 기반으로 맵의 일부만 렌더링
+    for (int y = 0; y < screen_height - 1; y++) { // 마지막 줄은 HUD용으로 남김
+        int map_y = camera_y + y;
+        for (int x = 0; x < tiles_per_row; x++) {
+            int map_x = camera_x + x;
+            
+            if (map_x >= 0 && map_x < map->width && map_y >= 0 && map_y < map->height) {
+                TileType tile = map_get_tile(map, map_x, map_y);
+                render_tile(tile, x, y);
+            } else {
+                // 맵 밖 영역은 빈 공간으로
+                console_set_cursor_position(x * 2, y);
+                console_set_color(COLOR_WHITE, COLOR_BLACK);
+                printf("  ");
+            }
+        }
+    }
+}
+
+// 깜빡임 없는 맵 렌더링 (더블 버퍼링)
+void render_map_no_flicker(const Map* map, int camera_x, int camera_y) {
+    if (!map) return;
+    
+    // 타일이 2칸씩 차지하므로 가로는 screen_width / 2만큼만 렌더링
+    int tiles_per_row = screen_width / 2;
+    
+    // 첫 프레임에서는 전체 화면 클리어
+    if (first_frame) {
+        console_clear();
+        first_frame = false;
+    } else {
+        // 이후 프레임에서는 커서만 처음 위치로 이동
+        console_set_cursor_position(0, 0);
+    }
+    
+    // 변경된 타일만 업데이트
+    for (int y = 0; y < screen_height - 1; y++) {
+        int map_y = camera_y + y;
+        for (int x = 0; x < tiles_per_row; x++) {
+            int map_x = camera_x + x;
+            int buffer_idx = y * tiles_per_row + x;
+            
+            TileType current_tile = TILE_EMPTY;
+            if (map_x >= 0 && map_x < map->width && map_y >= 0 && map_y < map->height) {
+                current_tile = map_get_tile(map, map_x, map_y);
+            }
+            
+            // 이전 프레임과 다를 때만 렌더링
+            // 스위치/도어는 상태가 바뀔 수 있으므로 항상 체크
+            bool needs_render = false;
+            if (!prev_frame_buffer || prev_frame_buffer[buffer_idx] != current_tile) {
+                needs_render = true;
+            } else if (current_tile == TILE_SWITCH || current_tile == TILE_DOOR) {
+                // 스위치/도어는 타일 타입이 같아도 상태가 바뀔 수 있음
+                needs_render = true;
+            }
+            
+            if (needs_render) {
+                render_tile_with_map(current_tile, x, y, map, map_x, map_y);
+                if (prev_frame_buffer) {
+                    prev_frame_buffer[buffer_idx] = current_tile;
+                }
+            }
+        }
+    }
 }
 
 // 깜빡임 없는 맵 렌더링 (플레이어 위치 제외)
@@ -223,6 +320,55 @@ void render_map_no_flicker_with_players(const Map* map, int camera_x, int camera
         }
     }
 
+    // 토글 플랫폼 렌더링 (잔상 제거 포함)
+    if (map) {
+        // 1단계: 이전 위치 지우기
+        for (int i = 0; i < map->toggle_platform_count; i++) {
+            if (!prev_toggle_platform_valid[i]) continue;
+            
+            int px = map->toggle_platforms[i].x;
+            int width = map->toggle_platforms[i].width;
+            int old_py = prev_toggle_platform_y[i];
+            int new_py = (int)roundf(map->toggle_platforms[i].y);
+            
+            // 위치가 바뀌었으면 이전 위치 지우기
+            if (old_py != new_py) {
+                for (int w = 0; w < width; w++) {
+                    int sx = (px + w) - camera_x;
+                    int sy = old_py - camera_y;
+                    
+                    if (sx >= 0 && sx < tiles_per_row && sy >= 0 && sy < screen_height - 1) {
+                        TileType original_tile = map_get_tile(map, px + w, old_py);
+                        render_tile_with_map(original_tile, sx, sy, map, px + w, old_py);
+                    }
+                }
+            }
+        }
+        
+        // 2단계: 현재 위치에 그리기
+        for (int i = 0; i < map->toggle_platform_count; i++) {
+            int px = map->toggle_platforms[i].x;
+            int py = (int)roundf(map->toggle_platforms[i].y);
+            int width = map->toggle_platforms[i].width;
+            
+            for (int w = 0; w < width; w++) {
+                int sx = (px + w) - camera_x;
+                int sy = py - camera_y;
+                
+                if (sx >= 0 && sx < tiles_per_row && sy >= 0 && sy < screen_height - 1) {
+                    console_set_cursor_position(sx * 2, sy);
+                    console_set_color(COLOR_MAGENTA, COLOR_BLACK);
+                    printf("▄▄");
+                    console_reset_color();
+                }
+            }
+            
+            // 현재 위치를 다음 프레임의 "이전 위치"로 저장
+            prev_toggle_platform_y[i] = py;
+            prev_toggle_platform_valid[i] = true;
+        }
+    }
+    
     // 이동 발판 오버레이 렌더링 (잔상 제거 포함)
     if (map) {
         // 1단계: 이전 프레임의 발판 위치를 원래 타일로 복구 (잔상 제거)

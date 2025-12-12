@@ -19,10 +19,11 @@ Map* map_create(int width, int height) {
     for (int i = 0; i < MAX_BOXES; i++) {
         map->boxes[i].x = 0;
         map->boxes[i].y = 0;
-        map->boxes[i].vy = 0.0f;
+        map->boxes[i].vy = 0.0f;  // 초기 속도 0
         map->boxes[i].active = false;
     }
     
+    // 스위치/도어 초기화
     map->switch_count = 0;
     for (int i = 0; i < MAX_SWITCHES; i++) {
         map->switches[i].x = 0;
@@ -37,6 +38,7 @@ Map* map_create(int width, int height) {
         map->doors[i].is_open = false;
     }
     
+    // 이동 발판 초기화
     map->platform_count = 0;
     for (int i = 0; i < MAX_PLATFORMS; i++) {
         map->platforms[i].x = 0.0f;
@@ -77,6 +79,8 @@ Map* map_create(int width, int height) {
     
     return map;
 }
+
+// 맵 메모리 해제
 void map_destroy(Map* map) {
     if (!map) return;
     
@@ -213,6 +217,110 @@ Map* map_load_from_file(const char* filename) {
         y++;
     }
     
+    // 토글 플랫폼(T) 및 수직 벽(V) 파싱
+    map->toggle_platform_count = 0;
+    map->vertical_wall_count = 0;
+    
+    for (int py = 0; py < height; py++) {
+        for (int px = 0; px < width; px++) {
+            // 토글 플랫폼 'T' 처리
+            if (map->tiles[py][px] == 'T') {
+                // 연속된 'T'들을 하나의 플랫폼으로 처리
+                int platform_width = 1;
+                while (px + platform_width < width && map->tiles[py][px + platform_width] == 'T') {
+                    platform_width++;
+                }
+                
+                if (map->toggle_platform_count < MAX_PLATFORMS) {
+                    int idx = map->toggle_platform_count++;
+                    map->toggle_platforms[idx].x = px;
+                    map->toggle_platforms[idx].width = platform_width;
+                    map->toggle_platforms[idx].y = (float)py;
+                    map->toggle_platforms[idx].original_y = py;
+                    
+                    // 아래로 내려가면서 흰색 바닥(TILE_FLOOR) 찾기
+                    int target_y = py;
+                    for (int search_y = py + 1; search_y < height; search_y++) {
+                        // 바닥/벽/물/불이 나오면 그 바로 위까지
+                        TileType below = map->tiles[search_y][px];
+                        if (below == TILE_FLOOR || below == TILE_WALL || 
+                            below == TILE_WATER_TERRAIN || below == TILE_FIRE_TERRAIN) {
+                            target_y = search_y - 1;
+                            break;
+                        }
+                    }
+                    
+                    map->toggle_platforms[idx].target_y = target_y;
+                    map->toggle_platforms[idx].moving_down = false;
+                    map->toggle_platforms[idx].target_is_down = false;
+                    
+                    // 가장 가까운 스위치 찾기
+                    int closest_switch = -1;
+                    float min_dist = 999999.0f;
+                    for (int si = 0; si < map->switch_count; si++) {
+                        int sx = map->switches[si].x;
+                        int sy = map->switches[si].y;
+                        float dist = sqrtf((float)((sx - px) * (sx - px) + (sy - py) * (sy - py)));
+                        if (dist < min_dist) {
+                            min_dist = dist;
+                            closest_switch = si;
+                        }
+                    }
+                    map->toggle_platforms[idx].linked_switch = closest_switch;
+                    
+                    // 'T' 타일들을 EMPTY로 변경 (오버레이로만 렌더링)
+                    for (int w = 0; w < platform_width; w++) {
+                        map->tiles[py][px + w] = TILE_EMPTY;
+                    }
+                }
+                
+                px += platform_width - 1; // 이미 처리한 'T'들 건너뛰기
+            }
+            // 수직 벽 'V' 처리
+            else if (map->tiles[py][px] == 'V') {
+                if (map->vertical_wall_count < MAX_PLATFORMS) {
+                    int idx = map->vertical_wall_count++;
+                    map->vertical_walls[idx].x = px;
+                    map->vertical_walls[idx].y = (float)py;
+                    map->vertical_walls[idx].original_y = py;
+                    
+                    // 같은 x 열에서 'v' 찾기 (타겟 위치)
+                    int target_y = py;
+                    for (int search_y = py - 1; search_y >= 0; search_y--) {
+                        if (map->tiles[search_y][px] == 'v') {
+                            target_y = search_y;
+                            break;
+                        }
+                    }
+                    
+                    map->vertical_walls[idx].target_y = target_y;
+                    map->vertical_walls[idx].is_up = false;
+                    
+                    // 가장 가까운 스위치 찾기
+                    int closest_switch = -1;
+                    float min_dist = 999999.0f;
+                    for (int si = 0; si < map->switch_count; si++) {
+                        int sx = map->switches[si].x;
+                        int sy = map->switches[si].y;
+                        float dist = sqrtf((float)((sx - px) * (sx - px) + (sy - py) * (sy - py)));
+                        if (dist < min_dist) {
+                            min_dist = dist;
+                            closest_switch = si;
+                        }
+                    }
+                    map->vertical_walls[idx].linked_switch = closest_switch;
+                    
+                    // 'V' 타일을 EMPTY로 변경
+                    map->tiles[py][px] = TILE_EMPTY;
+                }
+            }
+            // 't'와 'v'도 EMPTY로 변경
+            else if (map->tiles[py][px] == 't' || map->tiles[py][px] == 'v') {
+                map->tiles[py][px] = TILE_EMPTY;
+            }
+        }
+    }
+    
     fclose(file);
     return map;
 }
@@ -244,10 +352,9 @@ bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy) {
         case TILE_WATER_TERRAIN:
             return !is_fireboy; // Watergirl만 통과 가능
         case TILE_DOOR:
-            // 도어는 열려있으면 통과 가능, 닫혀있으면 막힘
-            // map_update_doors에서 열림 상태에 따라 TILE_EMPTY 또는 TILE_DOOR로 변경됨
-            // 여기서는 타일 타입만 확인하므로, 실제로는 map_update_doors 후에 체크됨
-            return false; // 기본적으로는 막힘 (열려있으면 TILE_EMPTY로 바뀌어서 통과 가능)
+            // 도어는 열려있으면 TILE_EMPTY로 바뀌어서 여기까지 오지 않음
+            // 닫혀있으면 TILE_DOOR로 유지되어 막힘
+            return false; // 기본적으로는 막힘
         default:
             return true;
     }
@@ -423,6 +530,21 @@ void map_update_boxes(Map* map, float delta_time) {
     }
 }
 
+// 상자 상태 리셋 (맵 리셋 시 호출)
+void map_reset_boxes(Map* map) {
+    if (!map) return;
+    
+    // 모든 상자의 속도를 0으로 초기화
+    for (int i = 0; i < map->box_count; i++) {
+        if (map->boxes[i].active) {
+            map->boxes[i].vy = 0.0f;
+        }
+    }
+    
+    // static 변수 리셋을 위해 중력 업데이트를 한 번 호출 (누적값 초기화 효과)
+    // 실제로는 다음 프레임부터 중력이 적용됨
+}
+
 // 스위치/도어 관련 헬퍼 구현
 int map_get_switch_count(const Map* map) {
     if (!map) return 0;
@@ -498,7 +620,7 @@ void map_update_doors(Map* map) {
     for (int i = 0; i < map->door_count; i++) {
         map->doors[i].is_open = any_switch_active;
         
-        // 도어가 열려있으면 타일을 EMPTY로 변경 (통과 가능)
+        // 도어가 열려있으면 타일을 EMPTY로 변경 (완전히 사라짐)
         // 닫혀있으면 TILE_DOOR로 유지 (벽처럼 막힘)
         if (map->doors[i].is_open) {
             map_set_tile(map, map->doors[i].x, map->doors[i].y, TILE_EMPTY);
@@ -610,6 +732,107 @@ void map_update_platforms(Map* map, float delta_time, struct Player* fireboy, st
         // 타일 배열은 건드리지 않음! 렌더러에서 오버레이로 그림
         map->platforms[i].x = new_fx;
         map->platforms[i].y = new_fy;
+    }
+}
+
+// 토글 플랫폼 업데이트
+void map_update_toggle_platforms(Map* map, float delta_time) {
+    if (!map) return;
+    
+    const float platform_speed = 3.0f; // 초당 3타일 이동
+    
+    for (int i = 0; i < map->toggle_platform_count; i++) {
+        // 연결된 스위치가 있는지 확인
+        int switch_idx = map->toggle_platforms[i].linked_switch;
+        if (switch_idx < 0 || switch_idx >= map->switch_count) {
+            continue;
+        }
+        
+        // 스위치가 활성화되면 목표 위치 설정
+        bool switch_on = map->switches[switch_idx].activated;
+        bool should_be_down = switch_on;
+        
+        // 목표 상태가 바뀌면 이동 시작
+        if (should_be_down != map->toggle_platforms[i].target_is_down) {
+            map->toggle_platforms[i].target_is_down = should_be_down;
+        }
+        
+        // 현재 목표 위치
+        float target = should_be_down ? 
+            (float)map->toggle_platforms[i].target_y : 
+            (float)map->toggle_platforms[i].original_y;
+        
+        // 현재 위치
+        float current = map->toggle_platforms[i].y;
+        
+        // 목표에 도달하지 않았으면 이동
+        if (fabsf(current - target) > 0.1f) {
+            if (current < target) {
+                // 아래로 이동
+                map->toggle_platforms[i].y += platform_speed * delta_time;
+                if (map->toggle_platforms[i].y > target) {
+                    map->toggle_platforms[i].y = target;
+                }
+            } else {
+                // 위로 이동
+                map->toggle_platforms[i].y -= platform_speed * delta_time;
+                if (map->toggle_platforms[i].y < target) {
+                    map->toggle_platforms[i].y = target;
+                }
+            }
+        }
+    }
+}
+
+// 수직 벽 업데이트
+void map_update_vertical_walls(Map* map, float delta_time) {
+    if (!map) return;
+    (void)delta_time; // 경고 방지 (현재는 즉시 사라지므로 사용 안 함)
+    
+    for (int i = 0; i < map->vertical_wall_count; i++) {
+        // 연결된 스위치가 있는지 확인
+        int switch_idx = map->vertical_walls[i].linked_switch;
+        if (switch_idx < 0 || switch_idx >= map->switch_count) {
+            continue;
+        }
+        
+        // 스위치에 박스가 있으면 V 벽이 사라짐
+        bool box_on_switch = false;
+        int switch_x = map->switches[switch_idx].x;
+        int switch_y = map->switches[switch_idx].y;
+        for (int j = 0; j < map->box_count; j++) {
+            if (map->boxes[j].active && 
+                map->boxes[j].x == switch_x && map->boxes[j].y == switch_y) {
+                box_on_switch = true;
+                break;
+            }
+        }
+        bool should_hide = box_on_switch;
+        
+        // V 벽이 사라져야 하는지 확인
+        int wall_x = map->vertical_walls[i].x;
+        int orig_y = map->vertical_walls[i].original_y;
+        int target_y = map->vertical_walls[i].target_y;
+        
+        // 벽이 있는 전체 범위 (original_y ~ target_y)
+        int min_y = (orig_y < target_y) ? orig_y : target_y;
+        int max_y = (orig_y > target_y) ? orig_y : target_y;
+        
+        if (should_hide) {
+            // 박스가 스위치 위에 있으면 V 벽 전체를 EMPTY로 변경 (사라짐)
+            for (int y = min_y; y <= max_y; y++) {
+                if (y >= 0 && y < map->height && wall_x >= 0 && wall_x < map->width) {
+                    map->tiles[y][wall_x] = TILE_EMPTY;
+                }
+            }
+        } else {
+            // 박스가 없으면 V 벽을 다시 표시 (original_y부터 target_y까지)
+            for (int y = orig_y; y <= target_y; y++) {
+                if (y >= 0 && y < map->height && wall_x >= 0 && wall_x < map->width) {
+                    map->tiles[y][wall_x] = TILE_VERTICAL_WALL;
+                }
+            }
+        }
     }
 }
 
