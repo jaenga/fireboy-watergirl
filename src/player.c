@@ -221,7 +221,7 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                 TileType target_tile = map_get_tile(map, new_x, player->y);
                 
                 // 벽이면 이동 불가
-                if (target_tile == TILE_WALL) {
+                if (target_tile == TILE_WALL || target_tile == TILE_VERTICAL_WALL) {
                     vx_accumulator[player_idx] = 0.0f;
                     break;
                 }
@@ -235,7 +235,7 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                         TileType box_target = map_get_tile(map, box_new_x, player->y);
                         if ((box_target == TILE_EMPTY || box_target == TILE_SWITCH) &&
                             map_move_box(map, box_index, box_new_x, player->y)) {
-                            // 상자 이동 성공 시 플레이어는 상자 원래 자리로 이동 (상자와 플레이어 사이 간격 유지)
+                            // 상자 이동 성공 시 플레이어는 상자 원래 자리로 이동
                             player->x = new_x;
                             vx_accumulator[player_idx] -= move_step;
                             continue;
@@ -281,7 +281,7 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                 TileType target_tile = map_get_tile(map, new_x, player->y);
                 
                 // 벽이면 이동 불가
-                if (target_tile == TILE_WALL) {
+                if (target_tile == TILE_WALL || target_tile == TILE_VERTICAL_WALL) {
                     vx_accumulator[player_idx] = 0.0f;
                     break;
                 }
@@ -295,7 +295,7 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                         TileType box_target = map_get_tile(map, box_new_x, player->y);
                         if ((box_target == TILE_EMPTY || box_target == TILE_SWITCH) &&
                             map_move_box(map, box_index, box_new_x, player->y)) {
-                            // 상자 이동 성공 시 플레이어는 상자 원래 자리로 이동 (상자와 플레이어 사이 간격 유지)
+                            // 상자 이동 성공 시 플레이어는 상자 원래 자리로 이동
                             player->x = new_x;
                             vx_accumulator[player_idx] += move_step; // 음수이므로 더하기
                             continue;
@@ -372,6 +372,13 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
             TileType current_tile = map_get_tile(map, player->x, new_y);
             TileType tile_below = (new_y + 1 < map->height) ? map_get_tile(map, player->x, new_y + 1) : TILE_EMPTY;
             
+            // V벽이면 통과 불가
+            if (current_tile == TILE_VERTICAL_WALL) {
+                player->vy = 0;
+                vy_accumulator[player_idx] = 0.0f;
+                break;
+            }
+            
             // 목적지가 공백이면 계속 낙하 (바닥 타일 위로 내려가는 경우도 포함)
             if (current_tile == TILE_EMPTY) {
                 player->y = new_y;
@@ -391,7 +398,7 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
             }
             
             // 벽이나 바닥 타일이 바로 아래에 있으면 착지
-            if (tile_below == TILE_WALL || tile_below == TILE_FLOOR) {
+            if (tile_below == TILE_WALL || tile_below == TILE_FLOOR || tile_below == TILE_VERTICAL_WALL) {
                 player->y = new_y;
                 player->vy = 0;
                 player->is_on_ground = true;
@@ -434,7 +441,7 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
 
             // 점프할 목표 위치의 타일을 직접 확인해서 천장 충돌 판정
             TileType tile_above = map_get_tile(map, player->x, new_y);
-            if (tile_above == TILE_WALL || tile_above == TILE_FLOOR) {
+            if (tile_above == TILE_WALL || tile_above == TILE_FLOOR || tile_above == TILE_VERTICAL_WALL) {
                 // 바로 위 타일이 벽/바닥이면 그 아래 칸(현재 위치)에 딱 붙게 멈춤
                 player->vy = 0;
                 vy_accumulator[player_idx] = 0.0f;

@@ -23,166 +23,16 @@ void game_cleanup(void) {
     input_cleanup();
 }
 
-// 기본 테스트 함수
-void test_console(void) {
-    console_clear();
-    
-    printf("=== 콘솔 환경 테스트 ===\n\n");
-    
-    // 색상 테스트
-    console_set_color_fg(COLOR_RED);
-    printf("빨간색 텍스트\n");
-    
-    console_set_color_fg(COLOR_GREEN);
-    printf("초록색 텍스트\n");
-    
-    console_set_color_fg(COLOR_BLUE);
-    printf("파란색 텍스트\n");
-    
-    console_set_color_fg(COLOR_YELLOW);
-    printf("노란색 텍스트\n");
-    
-    console_reset_color();
-    printf("\n");
-    
-    // 커서 위치 테스트
-    console_set_cursor_position(0, 10);
-    console_set_color_fg(COLOR_CYAN);
-    printf("커서가 (0, 10) 위치에 있습니다.\n");
-    
-    console_reset_color();
-    console_set_cursor_position(0, 15);
-    printf("아무 키나 눌러 계속하세요...\n");
-    
-    // 입력 대기
-    while (!input_is_quit_requested()) {
-        input_update();
-        if (input_get_player_input().fireboy.enter || 
-            input_get_player_input().watergirl.enter) {
-            break;
-        }
-    }
-}
-
-// 입력 테스트 함수
-void test_input(void) {
-    console_clear();
-    
-    printf("=== 입력 시스템 테스트 ===\n\n");
-    printf("Fireboy: ← → 이동, ↑ 점프\n");
-    printf("Watergirl: A D 이동, W 점프\n");
-    printf("ESC: 종료\n\n");
-    printf("키를 눌러보세요...\n\n");
-    
-    while (!input_is_quit_requested()) {
-        input_update();
-        PlayerInput input = input_get_player_input();
-        
-        // 커서를 (0, 5)로 이동해서 입력 상태 표시
-        console_set_cursor_position(0, 5);
-        console_reset_color();
-        
-        printf("Fireboy 입력: ");
-        if (input.fireboy.left) printf("← ");
-        if (input.fireboy.right) printf("→ ");
-        if (input.fireboy.jump) printf("↑(점프) ");
-        printf("\n");
-        
-        printf("Watergirl 입력: ");
-        if (input.watergirl.left) printf("A ");
-        if (input.watergirl.right) printf("D ");
-        if (input.watergirl.jump) printf("W(점프) ");
-        printf("\n");
-        
-        // 화면 깜빡임 방지
-        fflush(stdout);
-        
-        // 짧은 지연
-#ifdef PLATFORM_WINDOWS
-        Sleep(10);
-#else
-        usleep(10000); // 10ms
-#endif
-    }
-}
-
-// 맵 테스트 함수
-void test_map(void) {
-    console_clear();
-    
-    printf("=== 맵 시스템 테스트 ===\n\n");
-    printf("맵 파일 로딩 중...\n");
-    
-    Map* map = map_load_from_file("stages/stage1.txt");
-    if (!map) {
-        printf("맵 로드 실패!\n");
-        printf("아무 키나 눌러 종료하세요...\n");
-        while (!input_is_quit_requested()) {
-            input_update();
-            if (input_get_player_input().fireboy.enter || 
-                input_get_player_input().watergirl.enter) {
-                break;
-            }
-        }
-        return;
-    }
-    
-    printf("맵 로드 성공! (크기: %dx%d)\n", map->width, map->height);
-    printf("Fireboy 시작 위치: (%d, %d)\n", map->fireboy_start_x, map->fireboy_start_y);
-    printf("Watergirl 시작 위치: (%d, %d)\n", map->watergirl_start_x, map->watergirl_start_y);
-    printf("\nEnter 키를 눌러 맵을 보세요...\n");
-    
-    // 입력 대기
-    while (!input_is_quit_requested()) {
-        input_update();
-        if (input_get_player_input().fireboy.enter || 
-            input_get_player_input().watergirl.enter) {
-            break;
-        }
-    }
-    
-    // 맵 렌더링
-    if (!input_is_quit_requested()) {
-        renderer_init(80, 30);
-        
-        while (!input_is_quit_requested()) {
-            input_update();
-            
-            // ESC로 종료
-            if (input_get_player_input().fireboy.escape) {
-                break;
-            }
-            
-            // 맵 렌더링 (깜빡임 없이)
-            render_map_no_flicker(map, 0, 0);
-            
-            // HUD 표시 (마지막 줄)
-            console_set_cursor_position(0, 24);
-            console_reset_color();
-            printf("ESC: 종료");
-            
-            fflush(stdout);
-            
-            // 짧은 지연
-#ifdef PLATFORM_WINDOWS
-            Sleep(50);
-#else
-            usleep(50000); // 50ms
-#endif
-        }
-    }
-    
-    map_destroy(map);
-}
-
 // 게임 루프 (4단계: 캐릭터 기본 이동)
-void game_loop(void) {
+void game_loop(const char* player_name) {
     console_clear();
     
     printf("=== 게임 시작 ===\n\n");
     printf("맵 파일 로딩 중...\n");
     
-    Map* map = map_load_from_file("stages/stage1.txt");
+    // 맵 파일 경로 저장 (사망 시 맵 리로드용)
+    const char* map_file_path = "stages/stage1.txt";
+    Map* map = map_load_from_file(map_file_path);
     if (!map) {
         printf("맵 로드 실패!\n");
         printf("아무 키나 눌러 종료하세요...\n");
@@ -198,6 +48,10 @@ void game_loop(void) {
     
     printf("맵 로드 성공! (크기: %dx%d)\n", map->width, map->height);
     printf("Enter 키를 눌러 게임을 시작하세요...\n");
+    
+    // 게임 시작 시 보석 개수 리셋
+    player_reset_gem_count();
+    player_reset_death_count();
     
     // 입력 대기
     while (!input_is_quit_requested()) {
@@ -228,6 +82,9 @@ void game_loop(void) {
     
     // 프레임 타이밍
     float delta_time = 0.05f; // 50ms = 0.05초 (고정 프레임)
+    
+    // 게임 타이머 시작
+    time_t game_start_time = time(NULL);
     
     // 게임 루프
     while (!input_is_quit_requested()) {
@@ -271,6 +128,60 @@ void game_loop(void) {
         player_update(&fireboy, map, input.fireboy.left, input.fireboy.right, input.fireboy.jump, delta_time);
         player_update(&watergirl, map, input.watergirl.left, input.watergirl.right, input.watergirl.jump, delta_time);
         
+        // Exit 도착 체크 (두 플레이어 모두 도착해야 함)
+        bool fireboy_at_exit = (fireboy.x == map->exit_x && fireboy.y == map->exit_y);
+        bool watergirl_at_exit = (watergirl.x == map->exit_x && watergirl.y == map->exit_y);
+        
+        if (fireboy_at_exit && watergirl_at_exit) {
+            // 스테이지 클리어!
+            time_t game_end_time = time(NULL);
+            float elapsed_time = (float)(game_end_time - game_start_time);
+            int deaths = player_get_death_count();
+            int fire_gems = player_get_fire_gem_count();
+            int water_gems = player_get_water_gem_count();
+            int total_gems = player_get_total_gem_count();
+            
+            console_set_cursor_position(20, 15);
+            console_set_color(COLOR_GREEN, COLOR_BLACK);
+            console_set_attribute(ATTR_BOLD);
+            printf("🎉 스테이지 클리어! 🎉");
+            console_reset_color();
+            console_set_cursor_position(15, 16);
+            console_set_color(COLOR_YELLOW, COLOR_BLACK);
+            printf("시간: %.1f초 | 사망: %d회", elapsed_time, deaths);
+            console_reset_color();
+            console_set_cursor_position(15, 17);
+            console_set_color(COLOR_RED, COLOR_BLACK);
+            printf("🔥 Fire 보석: %d", fire_gems);
+            console_reset_color();
+            printf(" | ");
+            console_set_color(COLOR_CYAN, COLOR_BLACK);
+            printf("💧 Water 보석: %d", water_gems);
+            console_reset_color();
+            printf(" | ");
+            console_set_color(COLOR_YELLOW, COLOR_BLACK);
+            printf("합계: %d", total_gems);
+            console_reset_color();
+            fflush(stdout);
+            
+            #ifdef PLATFORM_WINDOWS
+            Sleep(3000);
+            #else
+            usleep(3000000);
+            #endif
+            
+            // 랭킹 저장
+            if (player_name && strlen(player_name) > 0) {
+                RankingSystem ranking;
+                ranking_load(&ranking, "rankings.dat");
+                ranking_add_entry(&ranking, player_name, elapsed_time, deaths);
+                ranking_save(&ranking, "rankings.dat");
+            }
+            
+            // 스테이지 클리어 - 게임 루프 종료 (메인 메뉴로 돌아감)
+            break;
+        }
+        
         // 사망 체크
         if (fireboy.state == PLAYER_STATE_DEAD || watergirl.state == PLAYER_STATE_DEAD) {
             // 사망 횟수 증가
@@ -291,6 +202,17 @@ void game_loop(void) {
             usleep(500000);
             #endif
             
+            // 보석 개수 리셋
+            player_reset_gem_count();
+            
+            // 맵 다시 로드 (보석 복원)
+            map_destroy(map);
+            map = map_load_from_file(map_file_path);
+            if (!map) {
+                printf("맵 리로드 실패!\n");
+                break;
+            }
+            
             // 플레이어를 시작 위치로 리스폰
             player_init(&fireboy, PLAYER_FIREBOY, map->fireboy_start_x, map->fireboy_start_y);
             player_init(&watergirl, PLAYER_WATERGIRL, map->watergirl_start_x, map->watergirl_start_y);
@@ -301,8 +223,38 @@ void game_loop(void) {
             prev_watergirl_x = watergirl.x;
             prev_watergirl_y = watergirl.y;
             
-            // 화면 다시 그리기
+            // 화면 완전히 다시 그리기
+            renderer_reset(); // 렌더러 상태 리셋 (first_frame = true)
             console_clear();
+            render_map_no_flicker_with_players(map, camera_x, camera_y,
+                                              fireboy.x, fireboy.y,
+                                              watergirl.x, watergirl.y);
+            render_player(&fireboy, camera_x, camera_y);
+            render_player(&watergirl, camera_x, camera_y);
+            
+            // HUD 다시 그리기
+            console_set_cursor_position(0, 29);
+            console_reset_color();
+            int fire_gems = player_get_fire_gem_count();
+            int water_gems = player_get_water_gem_count();
+            int total_gems = player_get_total_gem_count();
+            deaths = player_get_death_count(); // 이미 위에서 선언됨
+            
+            console_set_color(COLOR_RED, COLOR_BLACK);
+            printf("🔥F:%d", fire_gems);
+            console_reset_color();
+            printf(" ");
+            console_set_color(COLOR_CYAN, COLOR_BLACK);
+            printf("💧W:%d", water_gems);
+            console_reset_color();
+            printf(" 합:%d | ", total_gems);
+            
+            console_set_color(COLOR_YELLOW, COLOR_BLACK);
+            printf("사망:%d회", deaths);
+            console_reset_color();
+            printf(" | Fireboy:← → ↑ Watergirl:A D W ESC:종료");
+            for (int i = 0; i < 3; i++) printf(" ");
+            fflush(stdout);
         }
         
         // 플레이어가 이동한 경우 이전 위치의 타일 다시 그리기
@@ -391,7 +343,7 @@ int main(void) {
         }
         
         if (result.start_game) {
-            game_loop();
+            game_loop(result.player_name);
         }
     }
     

@@ -130,7 +130,6 @@ void input_update(void) {
                     key_states.fireboy.right = true;
                     get_current_time(&last_key_time[1]); // fireboy.right
                     break;
-                // 아래 화살표는 사용 안 함
             }
         } else {
             switch (ch) {
@@ -150,7 +149,6 @@ void input_update(void) {
                     key_states.watergirl.right = true;
                     get_current_time(&last_key_time[4]); // watergirl.right
                     break;
-                // S는 사용 안 함, 스페이스바도 사용 안 함
                 case KEY_ESC:
                     current_input.fireboy.escape = true;
                     quit_requested = true;

@@ -9,6 +9,7 @@
 // 렌더러 함수 선언
 void renderer_init(int screen_width, int screen_height);
 void renderer_cleanup(void);
+void renderer_reset(void); // 렌더러 리셋 (사망 후 화면 다시 그리기용)
 void render_map(const Map* map, int camera_x, int camera_y);
 void render_tile(TileType tile, int x, int y);
 void render_tile_with_map(TileType tile, int screen_x, int screen_y, const Map* map, int map_x, int map_y);

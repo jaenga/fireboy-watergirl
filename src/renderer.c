@@ -47,6 +47,22 @@ void renderer_cleanup(void) {
     }
 }
 
+// 렌더러 리셋 (사망 후 화면 다시 그리기용)
+void renderer_reset(void) {
+    first_frame = true;
+    // 이전 프레임 버퍼 초기화
+    if (prev_frame_buffer) {
+        for (int i = 0; i < screen_width * screen_height; i++) {
+            prev_frame_buffer[i] = (TileType)0xFF; // 존재하지 않는 타일
+        }
+    }
+    // 발판 위치 추적 초기화
+    for (int i = 0; i < MAX_PLATFORMS; i++) {
+        prev_platform_valid[i] = false;
+        prev_toggle_platform_valid[i] = false;
+    }
+}
+
 // 타일을 화면에 렌더링 (유니코드 문자 + 배경색 사용, 타일당 2칸)
 // map과 map_x, map_y를 전달하면 스위치/도어 상태를 확인하여 색상 변경
 void render_tile(TileType tile, int x, int y) {

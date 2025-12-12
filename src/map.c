@@ -355,6 +355,9 @@ bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy) {
             // 도어는 열려있으면 TILE_EMPTY로 바뀌어서 여기까지 오지 않음
             // 닫혀있으면 TILE_DOOR로 유지되어 막힘
             return false; // 기본적으로는 막힘
+        case TILE_VERTICAL_WALL:
+            // V 벽은 통과 불가
+            return false;
         default:
             return true;
     }
@@ -415,14 +418,41 @@ bool map_move_box(Map* map, int index, int new_x, int new_y) {
     // 새 위치가 비어 있는지 확인
     TileType target = map_get_tile(map, new_x, new_y);
     // 공백이거나 스위치 위로는 이동 가능하게 허용
-    // (스위치 타일은 boxes/switches 배열로 따로 추적하므로, 타일 배열에서는 BOX로 덮어써도 됨)
     if (target != TILE_EMPTY && target != TILE_SWITCH) {
         return false;
     }
 
-    // 타일 갱신
-    map_set_tile(map, old_x, old_y, TILE_EMPTY);
-    map_set_tile(map, new_x, new_y, TILE_BOX);
+    // 이전 위치의 타일 복구 (플레이어가 들어갈 수 있도록)
+    bool was_on_switch = false;
+    for (int i = 0; i < map->switch_count; i++) {
+        if (map->switches[i].x == old_x && map->switches[i].y == old_y) {
+            was_on_switch = true;
+            break;
+        }
+    }
+    if (was_on_switch) {
+        // 스위치 위였으면 스위치로 복구
+        map_set_tile(map, old_x, old_y, TILE_SWITCH);
+    } else {
+        // 스위치 위가 아니었으면 EMPTY로 (플레이어가 들어갈 수 있도록)
+        map_set_tile(map, old_x, old_y, TILE_EMPTY);
+    }
+    
+    // 새 위치의 타일 설정
+    bool new_is_on_switch = false;
+    for (int i = 0; i < map->switch_count; i++) {
+        if (map->switches[i].x == new_x && map->switches[i].y == new_y) {
+            new_is_on_switch = true;
+            break;
+        }
+    }
+    if (new_is_on_switch) {
+        // 스위치 위면 박스로 덮어쓰되, 스위치 정보는 switches 배열에 있으므로 기능은 유지됨
+        map_set_tile(map, new_x, new_y, TILE_BOX);
+    } else {
+        // 스위치 위가 아니면 박스로 설정
+        map_set_tile(map, new_x, new_y, TILE_BOX);
+    }
 
     // 상자 좌표 갱신
     map->boxes[index].x = new_x;
@@ -699,7 +729,7 @@ void map_update_platforms(Map* map, float delta_time, struct Player* fireboy, st
         int delta_y = new_y - old_y;
         
         // 플레이어를 발판과 함께 이동 (발판 위에 있는 경우)
-        Player* players[2] = { fireboy, watergirl };
+        Player* players[2] = { (Player*)fireboy, (Player*)watergirl };
         for (int p = 0; p < 2; p++) {
             Player* pl = players[p];
             if (!pl) continue;
@@ -787,7 +817,7 @@ void map_update_toggle_platforms(Map* map, float delta_time) {
 // 수직 벽 업데이트
 void map_update_vertical_walls(Map* map, float delta_time) {
     if (!map) return;
-    (void)delta_time; // 경고 방지 (현재는 즉시 사라지므로 사용 안 함)
+    (void)delta_time; // 경고 방지
     
     for (int i = 0; i < map->vertical_wall_count; i++) {
         // 연결된 스위치가 있는지 확인
