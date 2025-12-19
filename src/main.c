@@ -12,6 +12,25 @@
     #include <signal.h>
 #endif
 
+// 텍스트 화면 폭 계산 (한글 2칸, ASCII 1칸, 이모지 2칸)
+static int get_text_display_width(const char* str) {
+    int width = 0;
+    int i = 0;
+    while (str[i] != '\0') {
+        unsigned char ch = (unsigned char)str[i];
+        if ((ch & 0x80) == 0) {
+            width += 1; i += 1;
+        } else if ((ch & 0xF0) == 0xE0) {
+            width += 2; i += 3; // 한글
+        } else if ((ch & 0xF8) == 0xF0) {
+            width += 2; i += 4; // 이모지
+        } else {
+            width += 1; i += 1;
+        }
+    }
+    return width;
+}
+
 // 스테이지 관리
 static int current_stage = 1;
 #define MAX_STAGE 3
@@ -205,6 +224,10 @@ void game_loop(const char* player_name) {
     
     // 게임 타이머 시작
     time_t game_start_time = time(NULL);
+    time_t total_game_start_time = time(NULL); // 전체 게임 시작 시간
+    
+    // 각 스테이지별 클리어 시간 저장
+    float stage_times[3] = {0.0f, 0.0f, 0.0f};
     
     // 게임 루프
     while (!input_is_quit_requested()) {
@@ -286,26 +309,72 @@ void game_loop(const char* player_name) {
             int water_gems = player_get_water_gem_count();
             int total_gems = player_get_total_gem_count();
             
-            console_set_cursor_position(20, 15);
-            console_set_color(COLOR_GREEN, COLOR_BLACK);
+            // 현재 스테이지 시간 저장
+            stage_times[current_stage - 1] = elapsed_time;
+            
+            // 팝업 박스 크기 및 위치 계산 (완전 중앙 정렬)
+            int box_width = 52;
+            int box_height = 7;
+            int start_x = (80 - box_width) / 2;
+            int start_y = (25 - box_height) / 2;
+            
+            // 배경색이 있는 박스 그리기
+            console_set_color(COLOR_BLACK, COLOR_WHITE);
+            
+            // 상단 테두리
+            console_set_cursor_position(start_x, start_y);
+            printf("╔");
+            for (int i = 0; i < box_width - 2; i++) printf("═");
+            printf("╗");
+            
+            // 빈 줄들 (배경색)
+            for (int y = 1; y < box_height - 1; y++) {
+                console_set_cursor_position(start_x, start_y + y);
+                printf("║");
+                for (int i = 0; i < box_width - 2; i++) printf(" ");
+                printf("║");
+            }
+            
+            // 하단 테두리
+            console_set_cursor_position(start_x, start_y + box_height - 1);
+            printf("╚");
+            for (int i = 0; i < box_width - 2; i++) printf("═");
+            printf("╝");
+            
+            // 내용 출력 (완전 중앙 정렬)
+            // 타이틀
+            char title[] = "🎉 스테이지 클리어! 🎉";
+            int title_width = get_text_display_width(title);
+            console_set_cursor_position(start_x + (box_width - title_width) / 2, start_y + 1);
+            console_set_color(COLOR_GREEN, COLOR_WHITE);
             console_set_attribute(ATTR_BOLD);
-            printf("🎉 스테이지 클리어! 🎉");
-            console_reset_color();
-            console_set_cursor_position(15, 16);
-            console_set_color(COLOR_YELLOW, COLOR_BLACK);
-            printf("시간: %.1f초 | 사망: %d회", elapsed_time, deaths);
-            console_reset_color();
-            console_set_cursor_position(15, 17);
-            console_set_color(COLOR_RED, COLOR_BLACK);
+            printf("%s", title);
+            
+            // 시간 및 사망
+            char time_line[64];
+            snprintf(time_line, sizeof(time_line), "시간: %.1f초 | 사망: %d회", elapsed_time, deaths);
+            int time_width = get_text_display_width(time_line);
+            console_set_cursor_position(start_x + (box_width - time_width) / 2, start_y + 3);
+            console_set_color(COLOR_BLACK, COLOR_WHITE);
+            printf("%s", time_line);
+            
+            // 보석 정보
+            char gem_line[128];
+            snprintf(gem_line, sizeof(gem_line), "🔥 Fire 보석: %d | 💧 Water 보석: %d | 합계: %d", 
+                     fire_gems, water_gems, total_gems);
+            int gem_width = get_text_display_width(gem_line);
+            console_set_cursor_position(start_x + (box_width - gem_width) / 2, start_y + 4);
+            console_set_color(COLOR_RED, COLOR_WHITE);
             printf("🔥 Fire 보석: %d", fire_gems);
-            console_reset_color();
+            console_set_color(COLOR_BLACK, COLOR_WHITE);
             printf(" | ");
-            console_set_color(COLOR_CYAN, COLOR_BLACK);
+            console_set_color(COLOR_CYAN, COLOR_WHITE);
             printf("💧 Water 보석: %d", water_gems);
-            console_reset_color();
+            console_set_color(COLOR_BLACK, COLOR_WHITE);
             printf(" | ");
-            console_set_color(COLOR_YELLOW, COLOR_BLACK);
+            console_set_color(COLOR_BLACK, COLOR_WHITE);
             printf("합계: %d", total_gems);
+            
             console_reset_color();
             fflush(stdout);
             
@@ -317,44 +386,20 @@ void game_loop(const char* player_name) {
             
             // 마지막 스테이지인지 확인
             if (current_stage >= MAX_STAGE) {
-                // Game Clear!
-                console_clear();
-                console_set_cursor_position(30, 12);
-                console_set_color(COLOR_GREEN, COLOR_BLACK);
-                console_set_attribute(ATTR_BOLD);
-                printf("🎉🎉🎉 Game Clear! 🎉🎉🎉");
-                console_reset_color();
-                console_set_cursor_position(25, 14);
-                console_set_color(COLOR_YELLOW, COLOR_BLACK);
-                printf("총 시간: %.1f초 | 총 사망: %d회", elapsed_time, deaths);
-                console_reset_color();
-                console_set_cursor_position(25, 15);
-                console_set_color(COLOR_RED, COLOR_BLACK);
-                printf("🔥 Fire 보석: %d", fire_gems);
-                console_reset_color();
-                printf(" | ");
-                console_set_color(COLOR_CYAN, COLOR_BLACK);
-                printf("💧 Water 보석: %d", water_gems);
-                console_reset_color();
-                printf(" | ");
-                console_set_color(COLOR_YELLOW, COLOR_BLACK);
-                printf("합계: %d", total_gems);
-                console_reset_color();
-                fflush(stdout);
-                
-                #ifdef PLATFORM_WINDOWS
-                Sleep(5000);
-                #else
-                usleep(5000000);
-                #endif
+                // 총 게임 시간 계산
+                time_t total_game_end_time = time(NULL);
+                float total_elapsed_time = (float)(total_game_end_time - total_game_start_time);
                 
                 // 랭킹 저장
                 if (player_name && strlen(player_name) > 0) {
                     RankingSystem ranking;
                     ranking_load(&ranking, "rankings.dat");
-                    ranking_add_entry(&ranking, player_name, elapsed_time, deaths);
+                    ranking_add_entry(&ranking, player_name, total_elapsed_time, deaths);
                     ranking_save(&ranking, "rankings.dat");
                 }
+                
+                // 최종 결과 화면 표시
+                menu_show_final_result(stage_times, total_elapsed_time, deaths, fire_gems, water_gems);
                 
                 // 게임 종료
                 break;

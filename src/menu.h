@@ -24,4 +24,8 @@ void menu_show_ranking(void);
 // 플레이어 이름 입력
 bool menu_get_player_name(char* name, int max_length);
 
+// 최종 결과 화면 (모든 스테이지 클리어시)
+// stage_times: 각 스테이지별 클리어 시간 배열 (예: [45.2, 60.5, 78.3] = 스테이지1:45.2초, 스테이지2:60.5초, 스테이지3:78.3초)
+void menu_show_final_result(float stage_times[], float total_time, int total_deaths, int total_fire_gems, int total_water_gems);
+
 #endif // MENU_H

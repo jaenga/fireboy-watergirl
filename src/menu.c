@@ -348,15 +348,15 @@ bool menu_get_player_name(char* name, int max_length) {
     
     console_set_color(COLOR_CYAN, COLOR_BLACK);
     console_set_attribute(ATTR_BOLD);
-    printf("                플레이어 이름을 입력하세요\n\n");  // 12줄, 13줄 빈 줄
+    printf("                     플레이어 이름을 입력하세요\n\n");  // 12줄, 13줄 빈 줄
     console_reset_color();
     
     console_set_color(COLOR_YELLOW, COLOR_BLACK);
-    printf("                    (한글/영문/숫자 가능, ESC: 취소)\n\n");  // 14줄, 15줄 빈 줄
+    printf("                     (한글/영문/숫자 가능, ESC: 취소)\n\n");  // 14줄, 15줄 빈 줄
     console_reset_color();
     
     console_set_color(COLOR_WHITE, COLOR_BLACK);
-    printf("                      이름: ");  // 16줄
+    printf("                     이름: ");  // 16줄
     console_reset_color();
     fflush(stdout);
     
@@ -622,5 +622,99 @@ bool menu_get_player_name(char* name, int max_length) {
         Sleep(50);
     }
 #endif
+}
+
+// ============================================================================
+// 최종 결과 화면 (모든 스테이지 클리어시)
+// ============================================================================
+void menu_show_final_result(float stage_times[], float total_time, int total_deaths, int total_fire_gems, int total_water_gems) {
+    console_clear();
+    console_set_cursor_position(0, 0);
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    console_set_attribute(ATTR_BOLD);
+    
+    // 상단 테두리
+    printf("╔════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║                                                                                ║\n");
+    printf("║                                                                                ║\n");
+    printf("║                                                                                ║\n");
+    
+    // 타이틀: GAME CLEAR!
+    console_set_color(COLOR_GREEN, COLOR_BLACK);
+    printf("║                           🎉🎉🎉 GAME CLEAR! 🎉🎉🎉                            ║\n");
+    
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    printf("║                                                                                ║\n");
+    printf("║                                                                                ║\n");
+    
+    // 스테이지별 결과
+    console_set_color(COLOR_WHITE, COLOR_BLACK);
+    printf("║                              스테이지별 결과                                   ║\n");
+    printf("║                                                                                ║\n");
+    
+    // 스테이지 1, 2, 3
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    printf("║                              스테이지 1: %.1f초                                 ║\n", stage_times[0]);
+    printf("║                              스테이지 2: %.1f초                                 ║\n", stage_times[1]);
+    printf("║                              스테이지 3: %.1f초                                 ║\n", stage_times[2]);
+    
+    printf("║                                                                                ║\n");
+    
+    // 총합 통계
+    console_set_color(COLOR_CYAN, COLOR_BLACK);
+    printf("║                              총 시간: %.1f초                                    ║\n", total_time);
+    console_set_color(COLOR_RED, COLOR_BLACK);
+    printf("║                              총 사망: %d회                                      ║\n", total_deaths);
+    printf("║                                                                                ║\n");
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    printf("║                              🔥 Fire 보석: %d                                   ║\n", total_fire_gems);
+    console_set_color(COLOR_CYAN, COLOR_BLACK);
+    printf("║                              💧 Water 보석: %d                                  ║\n", total_water_gems);
+    int total_gems = total_fire_gems + total_water_gems;
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    printf("║                              총 보석: %d                                        ║\n", total_gems);
+    printf("║                                                                                ║\n");
+    printf("║                                                                                ║\n");
+    
+    // 하단 안내
+    printf("║                                                                                ║\n");
+    printf("║                                                                                ║\n");
+    console_set_color(COLOR_CYAN, COLOR_BLACK);
+    printf("║                           Enter: 홈화면으로 돌아가기                           ║\n");
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    printf("║                                                                                ║\n");
+    
+    // 하단 테두리
+    printf("╚════════════════════════════════════════════════════════════════════════════════╝");
+    console_reset_color();
+    fflush(stdout);
+    
+    // 커서 숨기기 및 위치 고정
+    console_hide_cursor();
+    console_set_cursor_position(0, 0);
+    
+    // Enter 입력 대기
+    while (true) {
+        input_update();
+        PlayerInput player_input = input_get_player_input();
+        
+        if (player_input.fireboy.enter || player_input.watergirl.enter) {
+            #ifdef PLATFORM_WINDOWS
+            Sleep(200);
+            #else
+            usleep(200000);
+            #endif
+            break;
+        }
+        
+        // 커서 위치 유지 (화면 스크롤 방지)
+        console_set_cursor_position(0, 0);
+        
+        #ifdef PLATFORM_WINDOWS
+        Sleep(50);
+        #else
+        usleep(50000);
+        #endif
+    }
 }
 
