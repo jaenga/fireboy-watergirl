@@ -53,6 +53,7 @@ typedef struct {
         int y;
         bool activated;
         bool toggle_state;
+        char group_id[32];  // 스위치 그룹 ID (예: "PLATFORM_1")
     } switches[MAX_SWITCHES];
     
     int door_count;
@@ -87,7 +88,8 @@ typedef struct {
         int target_y;
         bool moving_down;
         bool target_is_down;
-        int linked_switch;
+        int linked_switch;  // 하위 호환성을 위해 유지
+        char linked_group[32];  // 구독할 스위치 그룹 ID
     } toggle_platforms[MAX_PLATFORMS];
     
     // 수직 이동 벽 정보
@@ -98,7 +100,8 @@ typedef struct {
         int original_y;
         int target_y;
         bool is_up;
-        int linked_switch;
+        int linked_switch;  // 하위 호환성을 위해 유지
+        char linked_group[32];  // 구독할 스위치 그룹 ID
     } vertical_walls[MAX_PLATFORMS];
 } Map;
 

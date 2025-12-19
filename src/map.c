@@ -1,6 +1,7 @@
 #include "map.h"
 #include "player.h"
 #include <math.h>
+#include <string.h>
 
 // 맵 생성
 Map* map_create(int width, int height) {
@@ -29,6 +30,7 @@ Map* map_create(int width, int height) {
         map->switches[i].x = 0;
         map->switches[i].y = 0;
         map->switches[i].activated = false;
+        map->switches[i].group_id[0] = '\0';  // 빈 그룹 ID
     }
     
     map->door_count = 0;
@@ -171,12 +173,13 @@ Map* map_load_from_file(const char* filename) {
                         map->boxes[idx].active = true;
                     }
                 } else if (ch == TILE_SWITCH) {
-                    // 스위치 위치 기록
+                    // 스위치 위치 기록 (기본 그룹 ID 없음)
                     if (map->switch_count < MAX_SWITCHES) {
                         int idx = map->switch_count++;
                         map->switches[idx].x = x;
                         map->switches[idx].y = y;
                         map->switches[idx].activated = false;
+                        map->switches[idx].group_id[0] = '\0';  // 일단 빈 그룹 ID
                     }
                 } else if (ch == TILE_DOOR) {
                     // 도어 위치 기록
@@ -268,6 +271,15 @@ Map* map_load_from_file(const char* filename) {
                     }
                     map->toggle_platforms[idx].linked_switch = closest_switch;
                     
+                    // 가장 가까운 스위치의 그룹 ID를 구독
+                    if (closest_switch >= 0 && map->switches[closest_switch].group_id[0] != '\0') {
+                        strncpy(map->toggle_platforms[idx].linked_group, 
+                                map->switches[closest_switch].group_id, 31);
+                        map->toggle_platforms[idx].linked_group[31] = '\0';
+                    } else {
+                        map->toggle_platforms[idx].linked_group[0] = '\0';
+                    }
+                    
                     // 'T' 타일들을 EMPTY로 변경 (오버레이로만 렌더링)
                     for (int w = 0; w < platform_width; w++) {
                         map->tiles[py][px + w] = TILE_EMPTY;
@@ -310,6 +322,15 @@ Map* map_load_from_file(const char* filename) {
                     }
                     map->vertical_walls[idx].linked_switch = closest_switch;
                     
+                    // 가장 가까운 스위치의 그룹 ID를 구독
+                    if (closest_switch >= 0 && map->switches[closest_switch].group_id[0] != '\0') {
+                        strncpy(map->vertical_walls[idx].linked_group, 
+                                map->switches[closest_switch].group_id, 31);
+                        map->vertical_walls[idx].linked_group[31] = '\0';
+                    } else {
+                        map->vertical_walls[idx].linked_group[0] = '\0';
+                    }
+                    
                     // 'V' 타일을 EMPTY로 변경
                     map->tiles[py][px] = TILE_EMPTY;
                 }
@@ -321,7 +342,64 @@ Map* map_load_from_file(const char* filename) {
         }
     }
     
-    fclose(file);
+    // 파일을 다시 열어서 그룹 ID 섹션 파싱 (# GROUPS)
+    file = fopen(filename, "r");
+    if (file) {
+        bool in_groups_section = false;
+        while (fgets(line, sizeof(line), file)) {
+            // 개행 문자 제거
+            int len = strlen(line);
+            if (len > 0 && line[len - 1] == '\n') {
+                line[len - 1] = '\0';
+            }
+            
+            // 주석 라인 체크
+            if (strncmp(line, "# GROUPS", 8) == 0) {
+                in_groups_section = true;
+                continue;
+            }
+            
+            if (in_groups_section && line[0] != '\0' && line[0] != '#') {
+                // 형식: S x y group_id
+                char type;
+                int sx, sy;
+                char group_id[32];
+                if (sscanf(line, "%c %d %d %31s", &type, &sx, &sy, group_id) == 4) {
+                    if (type == 'S') {
+                        // 해당 위치의 스위치 찾기
+                        for (int i = 0; i < map->switch_count; i++) {
+                            if (map->switches[i].x == sx && map->switches[i].y == sy) {
+                                strncpy(map->switches[i].group_id, group_id, 31);
+                                map->switches[i].group_id[31] = '\0';
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        fclose(file);
+        
+        // 그룹 ID가 설정된 스위치들의 그룹을 발판/벽에 할당
+        for (int i = 0; i < map->toggle_platform_count; i++) {
+            int closest_switch = map->toggle_platforms[i].linked_switch;
+            if (closest_switch >= 0 && map->switches[closest_switch].group_id[0] != '\0') {
+                strncpy(map->toggle_platforms[i].linked_group, 
+                        map->switches[closest_switch].group_id, 31);
+                map->toggle_platforms[i].linked_group[31] = '\0';
+            }
+        }
+        
+        for (int i = 0; i < map->vertical_wall_count; i++) {
+            int closest_switch = map->vertical_walls[i].linked_switch;
+            if (closest_switch >= 0 && map->switches[closest_switch].group_id[0] != '\0') {
+                strncpy(map->vertical_walls[i].linked_group, 
+                        map->switches[closest_switch].group_id, 31);
+                map->vertical_walls[i].linked_group[31] = '\0';
+            }
+        }
+    }
+    
     return map;
 }
 
@@ -777,14 +855,27 @@ void map_update_toggle_platforms(Map* map, float delta_time) {
     const float platform_speed = 3.0f; // 초당 3타일 이동
     
     for (int i = 0; i < map->toggle_platform_count; i++) {
-        // 연결된 스위치가 있는지 확인
-        int switch_idx = map->toggle_platforms[i].linked_switch;
-        if (switch_idx < 0 || switch_idx >= map->switch_count) {
-            continue;
+        // 그룹 ID로 스위치 체크 (같은 그룹의 스위치 중 하나라도 활성화되면 동작)
+        bool switch_on = false;
+        
+        if (map->toggle_platforms[i].linked_group[0] != '\0') {
+            // 그룹 ID가 있으면 같은 그룹의 모든 스위치 체크
+            for (int si = 0; si < map->switch_count; si++) {
+                if (strcmp(map->switches[si].group_id, map->toggle_platforms[i].linked_group) == 0) {
+                    if (map->switches[si].activated) {
+                        switch_on = true;
+                        break;
+                    }
+                }
+            }
+        } else {
+            // 하위 호환성: 그룹 ID가 없으면 linked_switch 사용
+            int switch_idx = map->toggle_platforms[i].linked_switch;
+            if (switch_idx >= 0 && switch_idx < map->switch_count) {
+                switch_on = map->switches[switch_idx].activated;
+            }
         }
         
-        // 스위치가 활성화되면 목표 위치 설정
-        bool switch_on = map->switches[switch_idx].activated;
         bool should_be_down = switch_on;
         
         // 목표 상태가 바뀌면 이동 시작
@@ -825,24 +916,41 @@ void map_update_vertical_walls(Map* map, float delta_time) {
     (void)delta_time; // 경고 방지
     
     for (int i = 0; i < map->vertical_wall_count; i++) {
-        // 연결된 스위치가 있는지 확인
-        int switch_idx = map->vertical_walls[i].linked_switch;
-        if (switch_idx < 0 || switch_idx >= map->switch_count) {
-            continue;
-        }
+        // 그룹 ID로 스위치 체크 (같은 그룹의 스위치 중 하나라도 박스가 있으면 벽 사라짐)
+        bool should_hide = false;
         
-        // 스위치에 박스가 있으면 V 벽이 사라짐
-        bool box_on_switch = false;
-        int switch_x = map->switches[switch_idx].x;
-        int switch_y = map->switches[switch_idx].y;
-        for (int j = 0; j < map->box_count; j++) {
-            if (map->boxes[j].active && 
-                map->boxes[j].x == switch_x && map->boxes[j].y == switch_y) {
-                box_on_switch = true;
-                break;
+        if (map->vertical_walls[i].linked_group[0] != '\0') {
+            // 그룹 ID가 있으면 같은 그룹의 모든 스위치 체크
+            for (int si = 0; si < map->switch_count; si++) {
+                if (strcmp(map->switches[si].group_id, map->vertical_walls[i].linked_group) == 0) {
+                    // 해당 스위치에 박스가 있는지 확인
+                    int switch_x = map->switches[si].x;
+                    int switch_y = map->switches[si].y;
+                    for (int j = 0; j < map->box_count; j++) {
+                        if (map->boxes[j].active && 
+                            map->boxes[j].x == switch_x && map->boxes[j].y == switch_y) {
+                            should_hide = true;
+                            break;
+                        }
+                    }
+                    if (should_hide) break;
+                }
+            }
+        } else {
+            // 하위 호환성: 그룹 ID가 없으면 linked_switch 사용
+            int switch_idx = map->vertical_walls[i].linked_switch;
+            if (switch_idx >= 0 && switch_idx < map->switch_count) {
+                int switch_x = map->switches[switch_idx].x;
+                int switch_y = map->switches[switch_idx].y;
+                for (int j = 0; j < map->box_count; j++) {
+                    if (map->boxes[j].active && 
+                        map->boxes[j].x == switch_x && map->boxes[j].y == switch_y) {
+                        should_hide = true;
+                        break;
+                    }
+                }
             }
         }
-        bool should_hide = box_on_switch;
         
         // V 벽이 사라져야 하는지 확인
         int wall_x = map->vertical_walls[i].x;
