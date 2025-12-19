@@ -7,6 +7,50 @@
 #include "menu.h"
 #include "ranking.h"
 
+// 스테이지 관리
+static int current_stage = 1;
+#define MAX_STAGE 3
+
+// 스테이지 파일 경로 생성
+static void get_stage_filename(int stage_id, char* buffer, size_t buffer_size) {
+    snprintf(buffer, buffer_size, "stages/stage%d.txt", stage_id);
+}
+
+// 스테이지 로드 및 초기화
+static bool load_stage(int stage_id, Map** map, Player* fireboy, Player* watergirl, 
+                       int* prev_fireboy_x, int* prev_fireboy_y,
+                       int* prev_watergirl_x, int* prev_watergirl_y) {
+    char stage_file[256];
+    get_stage_filename(stage_id, stage_file, sizeof(stage_file));
+    
+    // 기존 맵 정리
+    if (*map) {
+        map_destroy(*map);
+    }
+    
+    // 새 맵 로드
+    *map = map_load_from_file(stage_file);
+    if (!*map) {
+        return false;
+    }
+    
+    // 플레이어 초기화
+    player_init(fireboy, PLAYER_FIREBOY, (*map)->fireboy_start_x, (*map)->fireboy_start_y);
+    player_init(watergirl, PLAYER_WATERGIRL, (*map)->watergirl_start_x, (*map)->watergirl_start_y);
+    
+    // 이전 위치 추적 초기화
+    *prev_fireboy_x = fireboy->x;
+    *prev_fireboy_y = fireboy->y;
+    *prev_watergirl_x = watergirl->x;
+    *prev_watergirl_y = watergirl->y;
+    
+    // 렌더러 리셋
+    renderer_reset();
+    console_clear();
+    
+    return true;
+}
+
 // 게임 초기화
 void game_init(void) {
     console_init();
@@ -27,13 +71,25 @@ void game_cleanup(void) {
 void game_loop(const char* player_name) {
     console_clear();
     
+    // 스테이지 초기화
+    current_stage = 1;
+    
     printf("=== 게임 시작 ===\n\n");
     printf("맵 파일 로딩 중...\n");
     
     // 맵 파일 경로 저장 (사망 시 맵 리로드용)
-    const char* map_file_path = "stages/stage1.txt";
-    Map* map = map_load_from_file(map_file_path);
-    if (!map) {
+    char map_file_path[256];
+    get_stage_filename(current_stage, map_file_path, sizeof(map_file_path));
+    
+    Map* map = NULL;
+    Player fireboy, watergirl;
+    int prev_fireboy_x, prev_fireboy_y;
+    int prev_watergirl_x, prev_watergirl_y;
+    
+    // 첫 스테이지 로드
+    if (!load_stage(current_stage, &map, &fireboy, &watergirl, 
+                    &prev_fireboy_x, &prev_fireboy_y,
+                    &prev_watergirl_x, &prev_watergirl_y)) {
         printf("맵 로드 실패!\n");
         printf("아무 키나 눌러 종료하세요...\n");
         while (!input_is_quit_requested()) {
@@ -62,17 +118,6 @@ void game_loop(const char* player_name) {
         }
     }
     
-    // 플레이어 초기화
-    Player fireboy, watergirl;
-    player_init(&fireboy, PLAYER_FIREBOY, map->fireboy_start_x, map->fireboy_start_y);
-    player_init(&watergirl, PLAYER_WATERGIRL, map->watergirl_start_x, map->watergirl_start_y);
-    
-    // 플레이어 이전 위치 추적 (렌더링을 위해)
-    int prev_fireboy_x = fireboy.x;
-    int prev_fireboy_y = fireboy.y;
-    int prev_watergirl_x = watergirl.x;
-    int prev_watergirl_y = watergirl.y;
-    
     // 렌더러 초기화 (화면 크기: 가로 80, 세로 30)
     renderer_init(80, 30);
     
@@ -93,6 +138,26 @@ void game_loop(const char* player_name) {
         // ESC로 종료
         if (input_get_player_input().fireboy.escape) {
             break;
+        }
+        
+        // 디버그용: 숫자키로 스테이지 전환
+        int stage_key = input_get_stage_key();
+        if (stage_key >= 1 && stage_key <= 3) {
+            int target_stage = stage_key;
+            if (target_stage != current_stage && target_stage <= MAX_STAGE) {
+                current_stage = target_stage;
+                get_stage_filename(current_stage, map_file_path, sizeof(map_file_path));
+                if (load_stage(current_stage, &map, &fireboy, &watergirl,
+                              &prev_fireboy_x, &prev_fireboy_y,
+                              &prev_watergirl_x, &prev_watergirl_y)) {
+                    game_start_time = time(NULL); // 타이머 리셋
+                    render_map_no_flicker_with_players(map, camera_x, camera_y,
+                                                      fireboy.x, fireboy.y,
+                                                      watergirl.x, watergirl.y);
+                    render_player(&fireboy, camera_x, camera_y);
+                    render_player(&watergirl, camera_x, camera_y);
+                }
+            }
         }
         
         // 입력 가져오기
@@ -170,16 +235,71 @@ void game_loop(const char* player_name) {
             usleep(3000000);
             #endif
             
-            // 랭킹 저장
-            if (player_name && strlen(player_name) > 0) {
-                RankingSystem ranking;
-                ranking_load(&ranking, "rankings.dat");
-                ranking_add_entry(&ranking, player_name, elapsed_time, deaths);
-                ranking_save(&ranking, "rankings.dat");
+            // 마지막 스테이지인지 확인
+            if (current_stage >= MAX_STAGE) {
+                // Game Clear!
+                console_clear();
+                console_set_cursor_position(30, 12);
+                console_set_color(COLOR_GREEN, COLOR_BLACK);
+                console_set_attribute(ATTR_BOLD);
+                printf("🎉🎉🎉 Game Clear! 🎉🎉🎉");
+                console_reset_color();
+                console_set_cursor_position(25, 14);
+                console_set_color(COLOR_YELLOW, COLOR_BLACK);
+                printf("총 시간: %.1f초 | 총 사망: %d회", elapsed_time, deaths);
+                console_reset_color();
+                console_set_cursor_position(25, 15);
+                console_set_color(COLOR_RED, COLOR_BLACK);
+                printf("🔥 Fire 보석: %d", fire_gems);
+                console_reset_color();
+                printf(" | ");
+                console_set_color(COLOR_CYAN, COLOR_BLACK);
+                printf("💧 Water 보석: %d", water_gems);
+                console_reset_color();
+                printf(" | ");
+                console_set_color(COLOR_YELLOW, COLOR_BLACK);
+                printf("합계: %d", total_gems);
+                console_reset_color();
+                fflush(stdout);
+                
+                #ifdef PLATFORM_WINDOWS
+                Sleep(5000);
+                #else
+                usleep(5000000);
+                #endif
+                
+                // 랭킹 저장
+                if (player_name && strlen(player_name) > 0) {
+                    RankingSystem ranking;
+                    ranking_load(&ranking, "rankings.dat");
+                    ranking_add_entry(&ranking, player_name, elapsed_time, deaths);
+                    ranking_save(&ranking, "rankings.dat");
+                }
+                
+                // 게임 종료
+                break;
+            } else {
+                // 다음 스테이지로 이동
+                current_stage++;
+                get_stage_filename(current_stage, map_file_path, sizeof(map_file_path));
+                
+                if (load_stage(current_stage, &map, &fireboy, &watergirl,
+                              &prev_fireboy_x, &prev_fireboy_y,
+                              &prev_watergirl_x, &prev_watergirl_y)) {
+                    game_start_time = time(NULL); // 타이머 리셋
+                    
+                    // 화면 다시 그리기
+                    render_map_no_flicker_with_players(map, camera_x, camera_y,
+                                                      fireboy.x, fireboy.y,
+                                                      watergirl.x, watergirl.y);
+                    render_player(&fireboy, camera_x, camera_y);
+                    render_player(&watergirl, camera_x, camera_y);
+                } else {
+                    // 다음 스테이지 로드 실패
+                    printf("다음 스테이지 로드 실패!\n");
+                    break;
+                }
             }
-            
-            // 스테이지 클리어 - 게임 루프 종료 (메인 메뉴로 돌아감)
-            break;
         }
         
         // 사망 체크
@@ -205,23 +325,13 @@ void game_loop(const char* player_name) {
             // 보석 개수 리셋
             player_reset_gem_count();
             
-            // 맵 다시 로드 (보석 복원)
-            map_destroy(map);
-            map = map_load_from_file(map_file_path);
-            if (!map) {
+            // 현재 스테이지 다시 로드 (보석 복원)
+            if (!load_stage(current_stage, &map, &fireboy, &watergirl,
+                           &prev_fireboy_x, &prev_fireboy_y,
+                           &prev_watergirl_x, &prev_watergirl_y)) {
                 printf("맵 리로드 실패!\n");
                 break;
             }
-            
-            // 플레이어를 시작 위치로 리스폰
-            player_init(&fireboy, PLAYER_FIREBOY, map->fireboy_start_x, map->fireboy_start_y);
-            player_init(&watergirl, PLAYER_WATERGIRL, map->watergirl_start_x, map->watergirl_start_y);
-            
-            // 이전 위치 추적 초기화
-            prev_fireboy_x = fireboy.x;
-            prev_fireboy_y = fireboy.y;
-            prev_watergirl_x = watergirl.x;
-            prev_watergirl_y = watergirl.y;
             
             // 화면 완전히 다시 그리기
             renderer_reset(); // 렌더러 상태 리셋 (first_frame = true)
@@ -252,7 +362,7 @@ void game_loop(const char* player_name) {
             console_set_color(COLOR_YELLOW, COLOR_BLACK);
             printf("사망:%d회", deaths);
             console_reset_color();
-            printf(" | Fireboy:← → ↑ Watergirl:A D W ESC:종료");
+            printf(" | Stage:%d/%d | Fireboy:← → ↑ Watergirl:A D W ESC:종료", current_stage, MAX_STAGE);
             for (int i = 0; i < 3; i++) printf(" ");
             fflush(stdout);
         }
@@ -311,7 +421,7 @@ void game_loop(const char* player_name) {
         console_set_color(COLOR_YELLOW, COLOR_BLACK);
         printf("사망:%d회", deaths);
         console_reset_color();
-        printf(" | Fireboy:← → ↑ Watergirl:A D W ESC:종료");
+        printf(" | Stage:%d/%d | Fireboy:← → ↑ Watergirl:A D W ESC:종료", current_stage, MAX_STAGE);
         // 공백으로 나머지 공간 채우기
         for (int i = 0; i < 3; i++) printf(" ");
         

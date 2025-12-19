@@ -442,6 +442,8 @@ bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy) {
             return is_fireboy; // Fireboy만 통과 가능
         case TILE_WATER_TERRAIN:
             return !is_fireboy; // Watergirl만 통과 가능
+        case TILE_POISON_TERRAIN:
+            return true; // 독 지형은 이동 가능하지만 사망함 (player.c에서 처리)
         case TILE_DOOR:
             // 도어는 열려있으면 TILE_EMPTY로 바뀌어서 여기까지 오지 않음
             // 닫혀있으면 TILE_DOOR로 유지되어 막힘

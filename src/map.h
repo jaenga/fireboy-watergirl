@@ -10,6 +10,7 @@ typedef enum {
     TILE_FLOOR = '.',      // 바닥
     TILE_FIRE_TERRAIN = 'F', // 불 지형 (Fireboy만 통과 가능)
     TILE_WATER_TERRAIN = 'W', // 물 지형 (Watergirl만 통과 가능)
+    TILE_POISON_TERRAIN = 'Z', // 독 지형 (모든 플레이어 사망)
     TILE_BOX = 'B',        // 상자
     TILE_SWITCH = 'S',     // 플레이어 스위치 (Fireboy/Watergirl이 활성화)
     TILE_BOX_SWITCH = 'X', // 상자 스위치 (상자만 활성화 가능)

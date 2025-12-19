@@ -27,6 +27,7 @@ void input_update(void);
 PlayerInput input_get_player_input(void);
 bool input_is_quit_requested(void);
 int input_getch_non_blocking(void); // 논블로킹 문자 입력
+int input_get_stage_key(void); // 마지막에 눌린 스테이지 키 반환 (1-3, 없으면 -1)
 
 // 키 코드 정의
 #ifdef PLATFORM_WINDOWS

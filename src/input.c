@@ -8,6 +8,7 @@
 static PlayerInput current_input = {0};
 static PlayerInput key_states = {0}; // 키 상태 추적 (키를 누르고 있는 동안 true 유지)
 static bool quit_requested = false;
+static int last_stage_key = -1; // 마지막에 눌린 숫자키 (1-3)
 
 // 키 입력 타임스탬프 (마지막 키 입력 시간)
 static struct timespec last_key_time[6] = {0}; // fireboy.left, fireboy.right, fireboy.jump, watergirl.left, watergirl.right, watergirl.jump
@@ -40,8 +41,22 @@ static long time_diff_ms(const struct timespec* t1, const struct timespec* t2) {
     return sec_diff * 1000 + nsec_diff / 1000000;
 }
 
+// 논블로킹 문자 입력 처리
+#ifdef PLATFORM_WINDOWS
+int input_getch_non_blocking(void) {
+    if (_kbhit()) {
+        int ch = _getch();
+        // 화살표 키는 두 바이트이므로 첫 바이트는 무시
+        if (ch == 224 || ch == 0) {
+            _getch(); // 두 번째 바이트 버리기
+            return -1;
+        }
+        return ch;
+    }
+    return -1;
+}
+#else
 // Unix/macOS에서 특수 키 입력 처리
-#ifdef PLATFORM_UNIX
 int input_getch_non_blocking(void) {
     fd_set readfds;
     struct timeval timeout;
@@ -230,6 +245,12 @@ void input_update(void) {
                     current_input.fireboy.enter = true;
                     current_input.watergirl.enter = true;
                     break;
+                case '1':
+                case '2':
+                case '3':
+                    // 숫자키 저장 (스테이지 전환용)
+                    last_stage_key = ch - '0';
+                    break;
             }
         }
     }
@@ -282,6 +303,13 @@ void input_update(void) {
 // 플레이어 입력 가져오기
 PlayerInput input_get_player_input(void) {
     return current_input;
+}
+
+// 마지막에 눌린 스테이지 키 반환 (1-3) 및 리셋
+int input_get_stage_key(void) {
+    int key = last_stage_key;
+    last_stage_key = -1; // 읽은 후 리셋
+    return key;
 }
 
 // 종료 요청 확인

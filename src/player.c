@@ -101,6 +101,9 @@ static bool check_ground(const Map* map, int x, int y, bool is_fireboy) {
     if (tile_below == TILE_WATER_TERRAIN && !is_fireboy) {
         return true;
     }
+    if (tile_below == TILE_POISON_TERRAIN) {
+        return true; // 독 지형도 지면으로 간주 (착지 가능하지만 사망)
+    }
     
     // 이동 발판이 바로 아래에 있으면 지면으로 간주
     if (map) {
@@ -155,6 +158,12 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
     
     // Watergirl이 불 지형에 닿으면 사망 (현재 위치 또는 발 밑)
     if (!is_fireboy && (current_tile == TILE_FIRE_TERRAIN || tile_below == TILE_FIRE_TERRAIN)) {
+        player->state = PLAYER_STATE_DEAD;
+        return;
+    }
+    
+    // 독 지형에 닿으면 모든 플레이어 사망 (현재 위치 또는 발 밑)
+    if (current_tile == TILE_POISON_TERRAIN || tile_below == TILE_POISON_TERRAIN) {
         player->state = PLAYER_STATE_DEAD;
         return;
     }
@@ -326,6 +335,12 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                     return;
                 }
                 
+                // 독 지형에 닿으면 모든 플레이어 사망
+                if (target_tile == TILE_POISON_TERRAIN) {
+                    player->state = PLAYER_STATE_DEAD;
+                    return;
+                }
+                
                 // 바닥 타일은 지상에 있을 때만 막힘 (공중에서는 통과 가능)
                 if (target_tile == TILE_FLOOR && player->is_on_ground) {
                     vx_accumulator[player_idx] = 0.0f;
@@ -431,6 +446,12 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                 player->is_on_ground = true;
                 vy_accumulator[player_idx] = 0.0f;
                 break;
+            }
+            
+            // 독 지형 체크 (사망)
+            if (tile_below == TILE_POISON_TERRAIN || current_tile == TILE_POISON_TERRAIN) {
+                player->state = PLAYER_STATE_DEAD;
+                return;
             }
             
             // 기타 경우도 계속 낙하 (바닥 타일을 통과할 수 있도록)

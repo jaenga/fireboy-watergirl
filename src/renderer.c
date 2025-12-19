@@ -104,6 +104,12 @@ void render_tile_with_map(TileType tile, int screen_x, int screen_y, const Map* 
             printf("≈≈");
             break;
             
+        case TILE_POISON_TERRAIN:
+            // 독 지형 - 초록색 배경
+            console_set_color(COLOR_YELLOW, COLOR_GREEN);
+            printf("☠ ");
+            break;
+            
         case TILE_BOX:
             // 상자
             console_set_color(COLOR_YELLOW, COLOR_BLACK);
