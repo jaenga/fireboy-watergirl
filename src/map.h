@@ -108,7 +108,7 @@ typedef struct {
 } Map;
 
 // 전방 선언
-struct Player;
+typedef struct Player Player;
 
 // 함수 선언
 Map* map_create(int width, int height);

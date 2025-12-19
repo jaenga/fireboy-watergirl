@@ -17,7 +17,7 @@ typedef enum {
 } PlayerState;
 
 // 플레이어 구조체
-typedef struct {
+typedef struct Player {
     PlayerType type;        // Fireboy 또는 Watergirl
     int x;                  // X 위치 (맵 좌표)
     int y;                  // Y 위치 (맵 좌표)
