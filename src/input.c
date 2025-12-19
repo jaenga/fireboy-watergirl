@@ -279,13 +279,6 @@ void input_update(void) {
     current_input.watergirl.right = key_states.watergirl.right;
 }
 
-// 키가 눌렸는지 확인
-bool input_is_key_pressed(char key) {
-    // 간단한 문자 키 확인용
-    (void)key; // 경고 방지
-    return false;
-}
-
 // 플레이어 입력 가져오기
 PlayerInput input_get_player_input(void) {
     return current_input;

@@ -120,6 +120,11 @@ static bool check_ground(const Map* map, int x, int y, bool is_fireboy) {
         return false;
     }
     
+    // 보석은 지면이 아님 (통과 가능)
+    if (tile_below == TILE_FIRE_GEM || tile_below == TILE_WATER_GEM) {
+        return false;
+    }
+    
     // 기타 타일들 (상자, 스위치 등)도 지면으로 간주
     return true;
 }
