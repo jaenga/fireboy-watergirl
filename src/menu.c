@@ -221,30 +221,201 @@ bool menu_get_player_name(char* name, int max_length) {
     
     console_set_color(COLOR_CYAN, COLOR_BLACK);
     console_set_attribute(ATTR_BOLD);
-    printf("                플레이어 이름을 입력하세요\n\n");
+    printf("                플레이어 이름을 입력하세요\n\n");  // 12줄, 13줄 빈 줄
     console_reset_color();
     
     console_set_color(COLOR_YELLOW, COLOR_BLACK);
-    printf("              (영문/숫자만 가능, ESC: 취소)\n\n");
+    printf("                    (한글/영문/숫자 가능, ESC: 취소)\n\n");  // 14줄, 15줄 빈 줄
     console_reset_color();
     
     console_set_color(COLOR_WHITE, COLOR_BLACK);
-    printf("                      이름: ");
+    printf("                      이름: ");  // 16줄
     console_reset_color();
+    fflush(stdout);
+    
+    // "이름: " 다음 위치 계산
+    // "                      " = 22 바이트 (공백 22개)
+    // "이름" = 6 바이트 (한글 2글자, UTF-8로 각 3바이트)
+    // ": " = 2 바이트 (콜론 1바이트 + 공백 1바이트)
+    // 총 30 바이트 위치에서 시작
+    int cursor_x = 30;  // "                      이름: " 다음 위치
+    int cursor_y = 16;  // 16줄 (12 + \n\n + 14 + \n\n + 16)
+    
+    // 입력 필드 초기 위치 설정
+    console_set_cursor_position(cursor_x, cursor_y);
     console_show_cursor();
     fflush(stdout);
     
+    name[0] = '\0';
+    
+#ifdef PLATFORM_UNIX
+    // 입력 시스템 정리 (non-canonical 모드 해제)
+    input_cleanup();
+    
+    // 원래 터미널 설정 저장
+    struct termios saved_termios, new_termios;
+    tcgetattr(STDIN_FILENO, &saved_termios);
+    new_termios = saved_termios;
+    
+    // Non-canonical 모드, ECHO 비활성화 (직접 화면 제어)
+    new_termios.c_lflag &= ~(ICANON | ECHO);  // non-canonical, ECHO 비활성화
+    new_termios.c_cc[VMIN] = 1;      // 최소 1바이트 읽기
+    new_termios.c_cc[VTIME] = 0;     // 타임아웃 없음
+    
+    // 입력 모드 설정
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_termios);
+    fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) & ~O_NONBLOCK);
+    
+    // 입력 버퍼 클리어
+    usleep(200000);
+    tcflush(STDIN_FILENO, TCIFLUSH);
+    char buffer[256] = {0};
+    int buf_len = 0;  // 바이트 길이
+    int char_count = 0;  // 문자 개수 (UTF-8 문자 기준)
+    
+    while (true) {
+        unsigned char ch;
+        if (read(STDIN_FILENO, &ch, 1) == 1) {
+            // ESC 키 처리
+            if (ch == 27) {
+                // ESC 시퀀스 확인 (화살표 키인지 확인)
+                fd_set readfds;
+                struct timeval timeout;
+                FD_ZERO(&readfds);
+                FD_SET(STDIN_FILENO, &readfds);
+                timeout.tv_sec = 0;
+                timeout.tv_usec = 50000;  // 50ms 대기
+                
+                if (select(STDIN_FILENO + 1, &readfds, NULL, NULL, &timeout) > 0) {
+                    unsigned char ch2;
+                    if (read(STDIN_FILENO, &ch2, 1) == 1) {
+                        if (ch2 == '[') {
+                            // 화살표 키는 무시
+                            unsigned char ch3;
+                            read(STDIN_FILENO, &ch3, 1);
+                            continue;
+                        }
+                    }
+                }
+                // ESC 키만 눌림 (취소)
+                tcsetattr(STDIN_FILENO, TCSANOW, &saved_termios);
+                fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) & ~O_NONBLOCK);
+                input_init();
+                console_hide_cursor();
+                return false;
+            }
+            // Enter 키 처리
+            else if (ch == '\n' || ch == '\r') {
+                if (buf_len == 0) {
+                    // 이름이 비어있으면 에러 메시지
+                    console_set_cursor_position(28, 16);
+                    console_set_color(COLOR_RED, COLOR_BLACK);
+                    printf("이름을 입력하세요!");
+                    console_reset_color();
+                    fflush(stdout);
+                    usleep(1000000);
+                    console_set_cursor_position(28, 16);
+                    printf("                  ");
+                    fflush(stdout);
+                    continue;
+                }
+                buffer[buf_len] = '\0';
+                if (buf_len >= max_length) {
+                    buffer[max_length - 1] = '\0';
+                }
+                memcpy(name, buffer, max_length);
+                tcsetattr(STDIN_FILENO, TCSANOW, &saved_termios);
+                fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) & ~O_NONBLOCK);
+                input_init();
+                console_hide_cursor();
+                return true;
+            }
+            // Backspace 또는 Delete 처리
+            else if (ch == 127 || ch == 8) {
+                if (buf_len > 0) {
+                    // UTF-8 문자 경계 찾기 (마지막 문자 제거)
+                    int bytes_to_remove = 1;
+                    // UTF-8 문자의 시작 바이트 찾기 (최대 4바이트 뒤까지 확인)
+                    int check_start = buf_len - 1;
+                    int check_end = (buf_len > 4) ? buf_len - 4 : 0;
+                    for (int i = check_start; i >= check_end; i--) {
+                        unsigned char b = (unsigned char)buffer[i];
+                        // UTF-8 시작 바이트 확인 (0xxxxxxx 또는 11xxxxxx)
+                        if ((b & 0x80) == 0 || (b & 0xC0) == 0xC0) {
+                            bytes_to_remove = buf_len - i;
+                            break;
+                        }
+                    }
+                    
+                    // 버퍼에서 문자 제거
+                    buf_len -= bytes_to_remove;
+                    char_count--;
+                    if (char_count < 0) char_count = 0;
+                    
+                    // 백스페이스 처리: 마지막 문자만 지우기
+                    console_set_cursor_position(cursor_x + buf_len, cursor_y);
+                    // 제거된 바이트 수만큼 공백 출력
+                    for (int i = 0; i < bytes_to_remove; i++) {
+                        printf(" ");
+                    }
+                    console_set_cursor_position(cursor_x + buf_len, cursor_y);
+                    fflush(stdout);
+                }
+            }
+            // 일반 문자 처리 (UTF-8 지원)
+            else if (buf_len < max_length - 1) {
+                // UTF-8 문자 시작 바이트 확인
+                unsigned char first_byte = (unsigned char)ch;
+                int utf8_bytes_needed = 1;
+                if ((first_byte & 0x80) == 0) {
+                    utf8_bytes_needed = 1;  // ASCII
+                } else if ((first_byte & 0xE0) == 0xC0) {
+                    utf8_bytes_needed = 2;
+                } else if ((first_byte & 0xF0) == 0xE0) {
+                    utf8_bytes_needed = 3;  // 한글
+                } else if ((first_byte & 0xF8) == 0xF0) {
+                    utf8_bytes_needed = 4;
+                }
+                
+                // 첫 바이트 저장
+                buffer[buf_len++] = ch;
+                
+                // UTF-8 문자의 나머지 바이트 읽기
+                if (utf8_bytes_needed > 1 && buf_len < max_length - 1) {
+                    for (int i = 1; i < utf8_bytes_needed && buf_len < max_length - 1; i++) {
+                        unsigned char next_byte;
+                        if (read(STDIN_FILENO, &next_byte, 1) == 1) {
+                            buffer[buf_len++] = next_byte;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                
+                char_count++;
+                
+                // 입력된 문자만 출력 (화면 다시 그리지 않음)
+                // 현재 입력 위치에 문자 출력
+                int output_pos = buf_len - utf8_bytes_needed;
+                console_set_cursor_position(cursor_x + output_pos, cursor_y);
+                for (int i = 0; i < utf8_bytes_needed; i++) {
+                    printf("%c", buffer[output_pos + i]);
+                }
+                // 커서를 입력 끝 위치로 이동
+                console_set_cursor_position(cursor_x + buf_len, cursor_y);
+                fflush(stdout);
+            }
+        }
+    }
+    
+#else
+    // Windows용 코드 (기존 로직 유지하되 영문/숫자만 지원)
     int cursor_x = 34;
     int cursor_y = 14;
     int name_len = 0;
-    name[0] = '\0';
     
     // 입력 버퍼 클리어
-    #ifdef PLATFORM_WINDOWS
     Sleep(200);
-    #else
-    usleep(200000);
-    #endif
     
     while (true) {
         int ch = input_getch_non_blocking();
@@ -263,11 +434,7 @@ bool menu_get_player_name(char* name, int max_length) {
                     printf("이름을 입력하세요!");
                     console_reset_color();
                     fflush(stdout);
-                    #ifdef PLATFORM_WINDOWS
                     Sleep(1000);
-                    #else
-                    usleep(1000000);
-                    #endif
                     console_set_cursor_position(28, 16);
                     printf("                  ");
                     fflush(stdout);
@@ -285,11 +452,7 @@ bool menu_get_player_name(char* name, int max_length) {
                     printf(" ");
                     console_set_cursor_position(cursor_x + name_len, cursor_y);
                     fflush(stdout);
-                    #ifdef PLATFORM_WINDOWS
                     Sleep(100);
-                    #else
-                    usleep(100000);
-                    #endif
                 }
             }
             // 유효한 문자 (영문, 숫자, _, -)
@@ -301,19 +464,12 @@ bool menu_get_player_name(char* name, int max_length) {
                     printf("%c", ch);
                     fflush(stdout);
                     name_len++;
-                    #ifdef PLATFORM_WINDOWS
                     Sleep(100);
-                    #else
-                    usleep(100000);
-                    #endif
                 }
             }
         }
         
-        #ifdef PLATFORM_WINDOWS
         Sleep(50);
-        #else
-        usleep(50000);
-        #endif
     }
+#endif
 }

@@ -1,0 +1,437 @@
+#include "menu.h"
+#include "console.h"
+#include "input.h"
+#include "ranking.h"
+#include <ctype.h>
+
+// 메뉴 화면을 그리는 함수
+static void draw_main_menu(int selected) {
+    const int menu_count = 4;
+    
+    // 제목 - 중앙정렬
+    console_set_cursor_position(0, 2);
+    console_set_color(COLOR_RED, COLOR_BLACK);
+    console_set_attribute(ATTR_BOLD);
+    printf("          ███████ ██ ██████  ███████ ██████   ██████  ██    ██\n");
+    printf("          ██      ██ ██   ██ ██      ██   ██ ██    ██  ██  ██ \n");
+    printf("          █████   ██ ██████  █████   ██████  ██    ██   ████  \n");
+    printf("          ██      ██ ██   ██ ██      ██   ██ ██    ██    ██   \n");
+    printf("          ██      ██ ██   ██ ███████ ██████   ██████     ██   \n");
+    console_reset_color();
+    
+    console_set_cursor_position(0, 10);
+    console_set_color(COLOR_CYAN, COLOR_BLACK);
+    console_set_attribute(ATTR_BOLD);
+    printf("       ██     ██  █████  ████████ ███████ ██████   ██████  ██ ██████  ██\n");
+    printf("       ██     ██ ██   ██    ██    ██      ██   ██ ██       ██ ██   ██ ██\n");
+    printf("       ██  █  ██ ███████    ██    █████   ██████  ██   ███ ██ ██████  ██\n");
+    printf("       ██ ███ ██ ██   ██    ██    ██      ██   ██ ██    ██ ██ ██   ██ ██\n");
+    printf("        ███ ███  ██   ██    ██    ███████ ██   ██  ██████  ██ ██   ██ ███████\n");
+    console_reset_color();
+    
+    // 메뉴 항목들 - 중앙정렬
+    const char* menu_items[] = {
+        "🎮 게임하기",
+        "📖 게임설명", 
+        "🏆 랭킹보기",
+        "종료"
+    };
+    
+    for (int i = 0; i < menu_count; i++) {
+        console_set_cursor_position(33, 19 + i * 2);
+        
+        if (i == selected) {
+            console_set_color(COLOR_BLACK, COLOR_YELLOW);
+            console_set_attribute(ATTR_BOLD);
+            printf("  ▶ %s ◀  ", menu_items[i]);
+        } else {
+            console_set_color(COLOR_WHITE, COLOR_BLACK);
+            printf("    %s    ", menu_items[i]);
+        }
+        console_reset_color();
+    }
+    
+    // 조작 안내 - 중앙정렬
+    console_set_cursor_position(0, 28);
+    console_set_color(COLOR_GREEN, COLOR_BLACK);
+    printf("                  ↑↓ 또는 W/S: 메뉴 이동 | Enter: 선택\n");
+    console_reset_color();
+    
+    fflush(stdout);
+}
+
+// 메인 메뉴 표시
+MenuResult menu_show_main(void) {
+    MenuResult result;
+    result.type = MENU_EXIT;
+    result.player_name[0] = '\0';
+    
+    int selected = 0;
+    const int menu_count = 4;
+    int last_selected = -1;
+    
+    // 첫 화면 그리기
+    console_clear();
+    draw_main_menu(selected);
+    
+    while (true) {
+        // 입력 처리
+        input_update();
+        PlayerInput player_input = input_get_player_input();
+        
+        bool needs_redraw = false;
+        
+        if (player_input.fireboy.up || player_input.watergirl.up) {
+            selected = (selected - 1 + menu_count) % menu_count;
+            needs_redraw = true;
+            #ifdef PLATFORM_WINDOWS
+            Sleep(150);
+            #else
+            usleep(150000);
+            #endif
+        } else if (player_input.fireboy.down || player_input.watergirl.down) {
+            selected = (selected + 1) % menu_count;
+            needs_redraw = true;
+            #ifdef PLATFORM_WINDOWS
+            Sleep(150);
+            #else
+            usleep(150000);
+            #endif
+        } else if (player_input.fireboy.enter || player_input.watergirl.enter) {
+            // 선택
+            switch (selected) {
+                case 0: // 게임하기
+                    if (menu_get_player_name(result.player_name, MAX_NAME_LENGTH)) {
+                        result.type = MENU_GAME;
+                        return result;
+                    }
+                    // 이름 입력 후 메뉴로 돌아오면 다시 그리기
+                    console_clear();
+                    draw_main_menu(selected);
+                    break;
+                case 1: // 게임설명
+                    // Enter 키 입력 대기 (연속 입력 방지)
+                    #ifdef PLATFORM_WINDOWS
+                    Sleep(200);
+                    #else
+                    usleep(200000);
+                    #endif
+                    
+                    menu_show_instructions();
+                    
+                    // 게임설명 후 메뉴로 돌아오면 다시 그리기
+                    console_clear();
+                    draw_main_menu(selected);
+                    break;
+                case 2: // 랭킹보기
+                    {
+                        // Enter 키 입력 대기 (연속 입력 방지)
+                        #ifdef PLATFORM_WINDOWS
+                        Sleep(200);
+                        #else
+                        usleep(200000);
+                        #endif
+                        
+                        RankingSystem ranking;
+                        ranking_load(&ranking);
+                        ranking_display(&ranking);
+                        
+                        // 입력 버퍼 초기화를 위한 짧은 대기
+                        #ifdef PLATFORM_WINDOWS
+                        Sleep(200);
+                        #else
+                        usleep(200000);
+                        #endif
+                        
+                        // 아무 키나 누를 때까지 대기
+                        while (!input_is_quit_requested()) {
+                            input_update();
+                            PlayerInput inp = input_get_player_input();
+                            if (inp.fireboy.enter || inp.watergirl.enter || inp.fireboy.escape) {
+                                break;
+                            }
+                            
+                            #ifdef PLATFORM_WINDOWS
+                            Sleep(50);
+                            #else
+                            usleep(50000);
+                            #endif
+                        }
+                        
+                        // 랭킹 후 메뉴로 돌아오면 다시 그리기
+                        console_clear();
+                        draw_main_menu(selected);
+                    }
+                    break;
+                case 3: // 종료
+                    result.type = MENU_EXIT;
+                    return result;
+            }
+        } else if (player_input.fireboy.escape || input_is_quit_requested()) {
+            result.type = MENU_EXIT;
+            return result;
+        }
+        
+        // 선택이 변경되었을 때만 다시 그리기
+        if (needs_redraw && selected != last_selected) {
+            draw_main_menu(selected);
+            last_selected = selected;
+        }
+        
+        #ifdef PLATFORM_WINDOWS
+        Sleep(50);
+        #else
+        usleep(50000);
+        #endif
+    }
+}
+
+// 게임 설명 표시
+void menu_show_instructions(void) {
+    console_clear();
+    console_set_cursor_position(0, 2);
+    
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    console_set_attribute(ATTR_BOLD);
+    printf("                              📖 게임 설명 📖\n\n");
+    console_reset_color();
+    
+    console_set_color(COLOR_WHITE, COLOR_BLACK);
+    printf("     ═══════════════════════════════════════════════════════════════════\n\n");
+    console_reset_color();
+    
+    console_set_color(COLOR_RED, COLOR_BLACK);
+    console_set_attribute(ATTR_BOLD);
+    printf("     🔥 Fireboy ");
+    console_reset_color();
+    console_set_color(COLOR_WHITE, COLOR_BLACK);
+    printf("와 ");
+    console_set_color(COLOR_CYAN, COLOR_BLACK);
+    console_set_attribute(ATTR_BOLD);
+    printf("💧 Watergirl ");
+    console_reset_color();
+    console_set_color(COLOR_WHITE, COLOR_BLACK);
+    printf("을 조작하여 함께 탈출하세요!\n\n");
+    
+    printf("     【 조작 방법 】\n");
+    console_set_color(COLOR_RED, COLOR_BLACK);
+    printf("       • Fireboy:   ← → 이동, ↑ 점프\n");
+    console_reset_color();
+    console_set_color(COLOR_CYAN, COLOR_BLACK);
+    printf("       • Watergirl: A D 이동, W 점프\n\n");
+    console_reset_color();
+    
+    console_set_color(COLOR_WHITE, COLOR_BLACK);
+    printf("     【 게임 규칙 】\n");
+    printf("       • 두 캐릭터를 모두 출구까지 이동시키세요.\n");
+    printf("       • ");
+    console_set_color(COLOR_RED, COLOR_BLACK);
+    printf("🔥 Fireboy");
+    console_set_color(COLOR_WHITE, COLOR_BLACK);
+    printf("는 물에 닿으면 안됩니다!\n");
+    printf("       • ");
+    console_set_color(COLOR_CYAN, COLOR_BLACK);
+    printf("💧 Watergirl");
+    console_set_color(COLOR_WHITE, COLOR_BLACK);
+    printf("는 불에 닿으면 안됩니다!\n");
+    printf("       • 초록색 독은 둘 다 피해야 합니다.\n");
+    printf("       • 빨간 보석은 Fireboy, 파란 보석은 Watergirl이 수집하세요.\n");
+    printf("       • 스위치를 밟으면 문이 열립니다.\n");
+    printf("       • 상자를 밀어서 퍼즐을 풀 수 있습니다.\n\n");
+    
+    printf("     【 목표 】\n");
+    printf("       • 가능한 한 빨리 클리어하여 랭킹에 등록하세요!\n");
+    printf("       • 사망 횟수가 적을수록 좋습니다.\n\n");
+    
+    printf("     ═══════════════════════════════════════════════════════════════════\n\n");
+    console_reset_color();
+    
+    // 메뉴로 돌아가기 버튼
+    console_set_cursor_position(0, 26);
+    console_set_color(COLOR_BLACK, COLOR_GREEN);
+    console_set_attribute(ATTR_BOLD);
+    printf("                         [ ESC: 메인 메뉴로 돌아가기 ]                        ");
+    console_reset_color();
+    
+    
+    console_set_cursor_position(0, 28);
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    printf("                       또는 Enter를 눌러 계속하세요");
+    console_reset_color();
+    
+    fflush(stdout);
+    
+    // 입력 버퍼 초기화를 위한 짧은 대기
+    #ifdef PLATFORM_WINDOWS
+    Sleep(200);
+    #else
+    usleep(200000);
+    #endif
+    
+    // ESC 또는 Enter 누를 때까지 대기
+    while (!input_is_quit_requested()) {
+        input_update();
+        PlayerInput inp = input_get_player_input();
+        
+        if (inp.fireboy.enter || inp.watergirl.enter || inp.fireboy.escape) {
+            break;
+        }
+        
+        #ifdef PLATFORM_WINDOWS
+        Sleep(50);
+        #else
+        usleep(50000);
+        #endif
+    }
+}
+
+// 플레이어 이름 입력
+bool menu_get_player_name(char* name, int max_length) {
+    console_clear();
+    console_set_cursor_position(0, 10);
+    
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    console_set_attribute(ATTR_BOLD);
+    printf("                         플레이어 이름을 입력하세요\n\n");
+    console_reset_color();
+    
+    console_set_color(COLOR_WHITE, COLOR_BLACK);
+    printf("                      (최대 %d자, Enter로 확인)\n\n", max_length - 1);
+    printf("                      이름: ");
+    console_reset_color();
+    
+    console_show_cursor();
+    fflush(stdout);
+    
+    // 터미널을 일반 입력 모드로 전환
+    input_enable_line_mode();
+    
+    // 이름 입력 받기
+    if (fgets(name, max_length, stdin) != NULL) {
+        // raw 모드로 복귀
+        input_disable_line_mode();
+        // 개행 문자 제거
+        size_t len = strlen(name);
+        if (len > 0 && name[len - 1] == '\n') {
+            name[len - 1] = '\0';
+            len--;
+        }
+        
+        // 공백 제거
+        while (len > 0 && isspace((unsigned char)name[len - 1])) {
+            name[len - 1] = '\0';
+            len--;
+        }
+        
+        // 빈 이름 체크
+        if (len == 0) {
+            console_hide_cursor();
+            console_set_cursor_position(0, 16);
+            console_set_color(COLOR_RED, COLOR_BLACK);
+            printf("                      이름을 입력해주세요!\n");
+            printf("                 Enter 또는 ESC: 메인 메뉴로 돌아가기");
+            console_reset_color();
+            fflush(stdout);
+            
+            // 입력 버퍼 초기화를 위한 짧은 대기
+            #ifdef PLATFORM_WINDOWS
+            Sleep(200);
+            #else
+            usleep(200000);
+            #endif
+            
+            while (!input_is_quit_requested()) {
+                input_update();
+                PlayerInput inp = input_get_player_input();
+                if (inp.fireboy.enter || inp.watergirl.enter || inp.fireboy.escape) {
+                    break;
+                }
+                
+                #ifdef PLATFORM_WINDOWS
+                Sleep(50);
+                #else
+                usleep(50000);
+                #endif
+            }
+            return false;
+        }
+        
+        console_hide_cursor();
+        return true;
+    }
+    
+    // raw 모드로 복귀 (fgets 실패 시)
+    input_disable_line_mode();
+    console_hide_cursor();
+    return false;
+}
+
+// 게임 종료 화면
+void menu_show_game_over(const char* player_name, float time, int death_count, bool is_victory) {
+    console_clear();
+    console_set_cursor_position(0, 8);
+    
+    if (is_victory) {
+        console_set_color(COLOR_YELLOW, COLOR_BLACK);
+        console_set_attribute(ATTR_BOLD);
+        printf("                             🎉 클리어! 축하합니다! 🎉\n\n");
+        console_reset_color();
+    } else {
+        console_set_color(COLOR_RED, COLOR_BLACK);
+        console_set_attribute(ATTR_BOLD);
+        printf("                                  게임 종료\n\n");
+        console_reset_color();
+    }
+    
+    console_set_color(COLOR_WHITE, COLOR_BLACK);
+    printf("                      플레이어: %s\n", player_name);
+    
+    int minutes = (int)(time / 60);
+    int seconds = (int)(time) % 60;
+    printf("                      클리어 시간: %d분 %d초\n", minutes, seconds);
+    printf("                      사망 횟수: %d회\n\n", death_count);
+    console_reset_color();
+    
+    if (is_victory) {
+        // 랭킹 시스템에 추가
+        RankingSystem ranking;
+        ranking_load(&ranking);
+        
+        if (ranking_add_entry(&ranking, player_name, time, death_count)) {
+            console_set_color(COLOR_GREEN, COLOR_BLACK);
+            console_set_attribute(ATTR_BOLD);
+            printf("                      🏆 랭킹에 등록되었습니다! 🏆\n\n");
+            console_reset_color();
+            ranking_save(&ranking);
+        }
+    }
+    
+    console_set_color(COLOR_GREEN, COLOR_BLACK);
+    printf("                 Enter 또는 ESC: 메인 메뉴로 돌아가기\n");
+    console_reset_color();
+    
+    fflush(stdout);
+    
+    // 입력 버퍼 초기화를 위한 짧은 대기
+    #ifdef PLATFORM_WINDOWS
+    Sleep(200);
+    #else
+    usleep(200000);
+    #endif
+    
+    // 아무 키나 누를 때까지 대기
+    while (!input_is_quit_requested()) {
+        input_update();
+        PlayerInput inp = input_get_player_input();
+        if (inp.fireboy.enter || inp.watergirl.enter || inp.fireboy.escape) {
+            break;
+        }
+        
+        #ifdef PLATFORM_WINDOWS
+        Sleep(50);
+        #else
+        usleep(50000);
+        #endif
+    }
+}
+

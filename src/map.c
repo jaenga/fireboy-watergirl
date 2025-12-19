@@ -510,7 +510,7 @@ void map_update_boxes(Map* map, float delta_time) {
         vy_accumulator[i] += map->boxes[i].vy * delta_time;
         
         // 누적된 속도가 1타일 이상이면 이동
-        while (fabsf(vy_accumulator[i]) >= 1.0f) {
+        while (fabsf(vy_accumulator[i]) >= 1.0f) { {
             if (vy_accumulator[i] > 0.0f) {
                 // 아래로 이동 (낙하)
                 int new_y = box_y + 1;
@@ -523,8 +523,26 @@ void map_update_boxes(Map* map, float delta_time) {
                 
                 TileType tile_below = map_get_tile(map, box_x, new_y);
                 
-                // 목적지가 공백이거나 스위치면 계속 낙하
-                if (tile_below == TILE_EMPTY || tile_below == TILE_SWITCH) {
+                // 먼저 바로 아래가 벽이나 바닥인지 확인
+                if (tile_below == TILE_WALL || tile_below == TILE_FLOOR) {
+                    // 바로 아래가 바닥이면 현재 위치에서 멈춤 (이미 캐릭터 공간 없음)
+                    map->boxes[i].vy = 0;
+                    vy_accumulator[i] = 0.0f;
+                    break;
+                }
+                
+                // 다른 상자가 바로 아래에 있으면 착지
+                if (tile_below == TILE_BOX) {
+                    map->boxes[i].vy = 0;
+                    vy_accumulator[i] = 0.0f;
+                    break;
+                }
+                
+                // 바로 아래가 빈 공간이면 계속 낙하
+                if (tile_below == TILE_EMPTY || tile_below == TILE_SWITCH ||
+                    tile_below == TILE_FIREBOY_START || tile_below == TILE_WATERGIRL_START) {
+                    
+                    // 계속 낙하
                     if (map_move_box(map, i, box_x, new_y)) {
                         box_y = new_y; // 위치 업데이트
                         vy_accumulator[i] -= 1.0f;
@@ -537,26 +555,13 @@ void map_update_boxes(Map* map, float delta_time) {
                     }
                 }
                 
-                // 벽이나 바닥이 바로 아래에 있으면 착지
-                if (tile_below == TILE_WALL || tile_below == TILE_FLOOR) {
-                    map->boxes[i].vy = 0;
-                    vy_accumulator[i] = 0.0f;
-                    break;
-                }
-                
-                // 다른 상자가 아래에 있으면 착지
-                if (tile_below == TILE_BOX) {
-                    map->boxes[i].vy = 0;
-                    vy_accumulator[i] = 0.0f;
-                    break;
-                }
-                
                 // 기타 경우도 멈춤
                 map->boxes[i].vy = 0;
                 vy_accumulator[i] = 0.0f;
                 break;
             }
         }
+    }
     }
 }
 
