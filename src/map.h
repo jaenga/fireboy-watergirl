@@ -48,6 +48,15 @@ typedef struct {
         bool active;
     } boxes[MAX_BOXES];
 
+    // 보석 정보 (박스와 독립적으로 관리)
+    int gem_count;
+    struct {
+        int x;
+        int y;
+        TileType type;  // TILE_FIRE_GEM 또는 TILE_WATER_GEM
+        bool collected;  // 수집되었는지 여부
+    } gems[MAX_SWITCHES];  // MAX_SWITCHES 재사용 (충분함)
+
     // 스위치/도어 정보
     int switch_count;
     struct {
@@ -136,6 +145,10 @@ bool map_is_switch_activated(const Map* map, int index);
 int map_find_switch(const Map* map, int x, int y);
 void map_update_switches(Map* map, int fireboy_x, int fireboy_y, int watergirl_x, int watergirl_y);
 void map_update_doors(Map* map);
+
+// 보석 관련
+int map_find_gem_at(const Map* map, int x, int y);
+bool map_collect_gem(Map* map, int x, int y, bool is_fireboy);
 
 // 발판 관련
 void map_update_platforms(Map* map, float delta_time, struct Player* fireboy, struct Player* watergirl);

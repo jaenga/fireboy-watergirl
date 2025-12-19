@@ -115,6 +115,17 @@ static bool check_ground(const Map* map, int x, int y, bool is_fireboy) {
                 return true;
             }
         }
+        
+        // 토글 발판이 바로 아래에 있으면 지면으로 간주
+        for (int i = 0; i < map->toggle_platform_count; i++) {
+            int py = (int)roundf(map->toggle_platforms[i].y);
+            int px_start = map->toggle_platforms[i].x;
+            int width = map->toggle_platforms[i].width;
+            // 플레이어가 토글 발판 위에 있는지 확인
+            if (x >= px_start && x < px_start + width && py == y + 1) {
+                return true;
+            }
+        }
     }
     
     // 공백이면 공중
@@ -122,10 +133,7 @@ static bool check_ground(const Map* map, int x, int y, bool is_fireboy) {
         return false;
     }
     
-    // 보석은 지면이 아님 (통과 가능)
-    if (tile_below == TILE_FIRE_GEM || tile_below == TILE_WATER_GEM) {
-        return false;
-    }
+    // 보석은 이제 타일에 없으므로 체크 불필요
     
     // 기타 타일들 (상자, 스위치 등)도 지면으로 간주
     return true;
@@ -168,15 +176,14 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
         return;
     }
     
-    // 보석 수집 처리
-    if (is_fireboy && current_tile == TILE_FIRE_GEM) {
-        // Fireboy 전용 보석 수집 → 타일 제거 + 카운트 증가
-        map_set_tile(map, player->x, player->y, TILE_EMPTY);
-        g_fire_gem_count++;
-    } else if (!is_fireboy && current_tile == TILE_WATER_GEM) {
-        // Watergirl 전용 보석 수집 → 타일 제거 + 카운트 증가
-        map_set_tile(map, player->x, player->y, TILE_EMPTY);
-        g_water_gem_count++;
+    // 보석 수집 처리 (gems 배열 사용)
+    if (map_collect_gem(map, player->x, player->y, is_fireboy)) {
+        // 보석 수집 성공 시 카운트 증가
+        if (is_fireboy) {
+            g_fire_gem_count++;
+        } else {
+            g_water_gem_count++;
+        }
     }
     
     // 지상 상태 확인
@@ -244,10 +251,10 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                     int box_index = map_find_box(map, new_x, player->y);
                     int box_new_x = new_x + 1; // 오른쪽으로 한 칸
                     if (box_index >= 0 && box_new_x >= 0 && box_new_x < map->width) {
-                        // 상자를 밀 수 있는지 확인 (새 위치는 비어 있거나 스위치여야 함)
+                        // 상자를 밀 수 있는지 확인 (새 위치는 비어 있거나 스위치, 보석이어야 함)
                         TileType box_target = map_get_tile(map, box_new_x, player->y);
                         
-                        // 새 위치가 비어있으면 밀기 가능 (중력은 자동 적용됨)
+                        // 새 위치가 비어있으면 밀기 가능 (보석은 이제 타일에 없음)
                         if ((box_target == TILE_EMPTY || box_target == TILE_SWITCH || box_target == TILE_BOX_SWITCH) &&
                             map_move_box(map, box_index, box_new_x, player->y)) {
                             // 상자 이동 성공 시 플레이어는 상자 원래 자리로 이동
@@ -306,10 +313,10 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                     int box_index = map_find_box(map, new_x, player->y);
                     int box_new_x = new_x - 1; // 왼쪽으로 한 칸
                     if (box_index >= 0 && box_new_x >= 0 && box_new_x < map->width) {
-                        // 상자를 밀 수 있는지 확인 (새 위치는 비어 있거나 스위치여야 함)
+                        // 상자를 밀 수 있는지 확인 (새 위치는 비어 있거나 스위치, 보석이어야 함)
                         TileType box_target = map_get_tile(map, box_new_x, player->y);
                         
-                        // 새 위치가 비어있으면 밀기 가능 (중력은 자동 적용됨)
+                        // 새 위치가 비어있으면 밀기 가능 (보석은 이제 타일에 없음)
                         if ((box_target == TILE_EMPTY || box_target == TILE_SWITCH || box_target == TILE_BOX_SWITCH) &&
                             map_move_box(map, box_index, box_new_x, player->y)) {
                             // 상자 이동 성공 시 플레이어는 상자 원래 자리로 이동

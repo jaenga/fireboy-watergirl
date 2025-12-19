@@ -136,6 +136,15 @@ Map* map_load_from_file(const char* filename) {
         return NULL;
     }
     
+    // 초기화
+    map->box_count = 0;
+    map->gem_count = 0;
+    map->switch_count = 0;
+    map->door_count = 0;
+    map->platform_count = 0;
+    map->toggle_platform_count = 0;
+    map->vertical_wall_count = 0;
+    
     // 파일 다시 읽기
     rewind(file);
     int y = 0;
@@ -173,6 +182,17 @@ Map* map_load_from_file(const char* filename) {
                         map->boxes[idx].vy = 0.0f;  // 초기 속도 0
                         map->boxes[idx].active = true;
                     }
+                } else if (ch == TILE_FIRE_GEM || ch == TILE_WATER_GEM) {
+                    // 보석 위치 기록하고 타일은 EMPTY로 변경
+                    if (map->gem_count < MAX_SWITCHES) {
+                        int idx = map->gem_count++;
+                        map->gems[idx].x = x;
+                        map->gems[idx].y = y;
+                        map->gems[idx].type = tile;
+                        map->gems[idx].collected = false;
+                    }
+                    // 타일 레이어에서는 빈 공간으로 처리 (박스가 통과 가능)
+                    map->tiles[y][x] = TILE_EMPTY;
                 } else if (ch == TILE_SWITCH) {
                     // 플레이어 스위치 위치 기록 (기본 그룹 ID 없음)
                     if (map->switch_count < MAX_SWITCHES) {
@@ -253,10 +273,15 @@ Map* map_load_from_file(const char* filename) {
                     map->toggle_platforms[idx].y = (float)py;
                     map->toggle_platforms[idx].original_y = py;
                     
-                    // 아래로 내려가면서 흰색 바닥(TILE_FLOOR) 찾기
+                    // 아래로 내려가면서 't' (목표 위치) 찾기
                     int target_y = py;
                     for (int search_y = py + 1; search_y < height; search_y++) {
-                        // 바닥/벽/물/불이 나오면 그 바로 위까지
+                        // 't' 찾으면 그 위치로 설정
+                        if (map->tiles[search_y][px] == 't') {
+                            target_y = search_y;
+                            break;
+                        }
+                        // 't' 못 찾고 바닥/벽/물/불이 나오면 그 바로 위까지
                         TileType below = map->tiles[search_y][px];
                         if (below == TILE_FLOOR || below == TILE_WALL || 
                             below == TILE_WATER_TERRAIN || below == TILE_FIRE_TERRAIN) {
@@ -510,7 +535,7 @@ bool map_move_box(Map* map, int index, int new_x, int new_y) {
 
     // 새 위치가 비어 있는지 확인
     TileType target = map_get_tile(map, new_x, new_y);
-    // 공백이거나 스위치 위로는 이동 가능하게 허용 (플레이어 스위치와 상자 스위치 모두)
+    // 공백이거나 스위치 위로는 이동 가능 (보석은 이제 타일에 없음)
     if (target != TILE_EMPTY && target != TILE_SWITCH && target != TILE_BOX_SWITCH) {
         return false;
     }
@@ -518,6 +543,7 @@ bool map_move_box(Map* map, int index, int new_x, int new_y) {
     // 이전 위치의 타일 복구 (플레이어가 들어갈 수 있도록)
     bool was_on_switch = false;
     bool was_box_switch = false;
+    
     for (int i = 0; i < map->switch_count; i++) {
         if (map->switches[i].x == old_x && map->switches[i].y == old_y) {
             was_on_switch = true;
@@ -525,27 +551,30 @@ bool map_move_box(Map* map, int index, int new_x, int new_y) {
             break;
         }
     }
+    
     if (was_on_switch) {
         // 스위치 위였으면 스위치 타입에 맞게 복구
         map_set_tile(map, old_x, old_y, was_box_switch ? TILE_BOX_SWITCH : TILE_SWITCH);
     } else {
-        // 스위치 위가 아니었으면 EMPTY로 (플레이어가 들어갈 수 있도록)
+        // 그 외의 경우는 EMPTY로 (플레이어가 들어갈 수 있도록)
         map_set_tile(map, old_x, old_y, TILE_EMPTY);
     }
     
     // 새 위치의 타일 설정
     bool new_is_on_switch = false;
+    
     for (int i = 0; i < map->switch_count; i++) {
         if (map->switches[i].x == new_x && map->switches[i].y == new_y) {
             new_is_on_switch = true;
             break;
         }
     }
+    
     if (new_is_on_switch) {
         // 스위치 위면 박스로 덮어쓰되, 스위치 정보는 switches 배열에 있으므로 기능은 유지됨
         map_set_tile(map, new_x, new_y, TILE_BOX);
     } else {
-        // 스위치 위가 아니면 박스로 설정
+        // 그 외의 경우 박스로 설정
         map_set_tile(map, new_x, new_y, TILE_BOX);
     }
 
@@ -633,7 +662,7 @@ void map_update_boxes(Map* map, float delta_time) {
                     break;
                 }
                 
-                // 바로 아래가 빈 공간이면 계속 낙하
+                // 바로 아래가 빈 공간이면 계속 낙하 (보석은 이제 타일에 없음)
                 if (tile_below == TILE_EMPTY || tile_below == TILE_SWITCH || tile_below == TILE_BOX_SWITCH ||
                     tile_below == TILE_FIREBOY_START || tile_below == TILE_WATERGIRL_START) {
                     
@@ -995,5 +1024,38 @@ void map_update_vertical_walls(Map* map, float delta_time) {
             }
         }
     }
+}
+
+// 특정 위치에 수집되지 않은 보석이 있는지 확인
+int map_find_gem_at(const Map* map, int x, int y) {
+    if (!map) return -1;
+    
+    for (int i = 0; i < map->gem_count; i++) {
+        if (!map->gems[i].collected &&
+            map->gems[i].x == x &&
+            map->gems[i].y == y) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// 보석 수집 (색상 체크 포함)
+bool map_collect_gem(Map* map, int x, int y, bool is_fireboy) {
+    if (!map) return false;
+    
+    int gem_idx = map_find_gem_at(map, x, y);
+    if (gem_idx < 0) return false;
+    
+    TileType gem_type = map->gems[gem_idx].type;
+    
+    // 색상 체크: Fireboy는 빨간 보석만, Watergirl은 파란 보석만
+    if ((is_fireboy && gem_type == TILE_FIRE_GEM) ||
+        (!is_fireboy && gem_type == TILE_WATER_GEM)) {
+        map->gems[gem_idx].collected = true;
+        return true;
+    }
+    
+    return false;
 }
 

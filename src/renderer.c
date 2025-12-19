@@ -457,6 +457,23 @@ void render_map_no_flicker_with_players(const Map* map, int camera_x, int camera
             prev_platform_valid[i] = true;
         }
     }
+    
+    // 보석 오버레이 렌더링 (gems 배열 사용, 수집되지 않은 것만)
+    if (map) {
+        for (int i = 0; i < map->gem_count; i++) {
+            if (map->gems[i].collected) continue;
+            
+            int gx = map->gems[i].x;
+            int gy = map->gems[i].y;
+            int sx = gx - camera_x;
+            int sy = gy - camera_y;
+            
+            if (sx >= 0 && sx < tiles_per_row && sy >= 0 && sy < screen_height - 1) {
+                // 보석을 오버레이로 그림
+                render_tile_with_map(map->gems[i].type, sx, sy, map, gx, gy);
+            }
+        }
+    }
 }
 
 // 플레이어 렌더링
