@@ -11,7 +11,8 @@ typedef enum {
     TILE_FIRE_TERRAIN = 'F', // 불 지형 (Fireboy만 통과 가능)
     TILE_WATER_TERRAIN = 'W', // 물 지형 (Watergirl만 통과 가능)
     TILE_BOX = 'B',        // 상자
-    TILE_SWITCH = 'S',     // 스위치
+    TILE_SWITCH = 'S',     // 플레이어 스위치 (Fireboy/Watergirl이 활성화)
+    TILE_BOX_SWITCH = 'X', // 상자 스위치 (상자만 활성화 가능)
     TILE_DOOR = 'D',       // 도어
     TILE_MOVING_PLATFORM = 'P', // 이동 발판
     TILE_TOGGLE_PLATFORM = 'T', // 토글 발판 (스위치로 위/아래 이동)
@@ -53,6 +54,7 @@ typedef struct {
         int y;
         bool activated;
         bool toggle_state;
+        bool is_box_switch;  // true면 상자 스위치, false면 플레이어 스위치
         char group_id[32];  // 스위치 그룹 ID (예: "PLATFORM_1")
     } switches[MAX_SWITCHES];
     

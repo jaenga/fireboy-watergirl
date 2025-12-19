@@ -240,7 +240,7 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                         TileType box_target = map_get_tile(map, box_new_x, player->y);
                         
                         // 새 위치가 비어있으면 밀기 가능 (중력은 자동 적용됨)
-                        if ((box_target == TILE_EMPTY || box_target == TILE_SWITCH) &&
+                        if ((box_target == TILE_EMPTY || box_target == TILE_SWITCH || box_target == TILE_BOX_SWITCH) &&
                             map_move_box(map, box_index, box_new_x, player->y)) {
                             // 상자 이동 성공 시 플레이어는 상자 원래 자리로 이동
                             player->x = new_x;
@@ -302,7 +302,7 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                         TileType box_target = map_get_tile(map, box_new_x, player->y);
                         
                         // 새 위치가 비어있으면 밀기 가능 (중력은 자동 적용됨)
-                        if ((box_target == TILE_EMPTY || box_target == TILE_SWITCH) &&
+                        if ((box_target == TILE_EMPTY || box_target == TILE_SWITCH || box_target == TILE_BOX_SWITCH) &&
                             map_move_box(map, box_index, box_new_x, player->y)) {
                             // 상자 이동 성공 시 플레이어는 상자 원래 자리로 이동
                             player->x = new_x;

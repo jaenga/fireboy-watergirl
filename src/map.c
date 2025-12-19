@@ -30,6 +30,7 @@ Map* map_create(int width, int height) {
         map->switches[i].x = 0;
         map->switches[i].y = 0;
         map->switches[i].activated = false;
+        map->switches[i].is_box_switch = false;  // 기본값은 플레이어 스위치
         map->switches[i].group_id[0] = '\0';  // 빈 그룹 ID
     }
     
@@ -173,12 +174,23 @@ Map* map_load_from_file(const char* filename) {
                         map->boxes[idx].active = true;
                     }
                 } else if (ch == TILE_SWITCH) {
-                    // 스위치 위치 기록 (기본 그룹 ID 없음)
+                    // 플레이어 스위치 위치 기록 (기본 그룹 ID 없음)
                     if (map->switch_count < MAX_SWITCHES) {
                         int idx = map->switch_count++;
                         map->switches[idx].x = x;
                         map->switches[idx].y = y;
                         map->switches[idx].activated = false;
+                        map->switches[idx].is_box_switch = false;  // 플레이어 스위치
+                        map->switches[idx].group_id[0] = '\0';  // 일단 빈 그룹 ID
+                    }
+                } else if (ch == TILE_BOX_SWITCH) {
+                    // 상자 스위치 위치 기록 (기본 그룹 ID 없음)
+                    if (map->switch_count < MAX_SWITCHES) {
+                        int idx = map->switch_count++;
+                        map->switches[idx].x = x;
+                        map->switches[idx].y = y;
+                        map->switches[idx].activated = false;
+                        map->switches[idx].is_box_switch = true;  // 상자 스위치
                         map->switches[idx].group_id[0] = '\0';  // 일단 빈 그룹 ID
                     }
                 } else if (ch == TILE_DOOR) {
@@ -360,12 +372,12 @@ Map* map_load_from_file(const char* filename) {
             }
             
             if (in_groups_section && line[0] != '\0' && line[0] != '#') {
-                // 형식: S x y group_id
+                // 형식: S x y group_id 또는 X x y group_id (상자 스위치)
                 char type;
                 int sx, sy;
                 char group_id[32];
                 if (sscanf(line, "%c %d %d %31s", &type, &sx, &sy, group_id) == 4) {
-                    if (type == 'S') {
+                    if (type == 'S' || type == 'X') {
                         // 해당 위치의 스위치 찾기
                         for (int i = 0; i < map->switch_count; i++) {
                             if (map->switches[i].x == sx && map->switches[i].y == sy) {
@@ -418,6 +430,7 @@ bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy) {
         case TILE_FLOOR:  // 바닥도 벽처럼 통과 불가
             return false;
         case TILE_SWITCH:
+        case TILE_BOX_SWITCH:
         case TILE_BOX:
         case TILE_MOVING_PLATFORM:
         case TILE_FIRE_GEM:
@@ -495,22 +508,24 @@ bool map_move_box(Map* map, int index, int new_x, int new_y) {
 
     // 새 위치가 비어 있는지 확인
     TileType target = map_get_tile(map, new_x, new_y);
-    // 공백이거나 스위치 위로는 이동 가능하게 허용
-    if (target != TILE_EMPTY && target != TILE_SWITCH) {
+    // 공백이거나 스위치 위로는 이동 가능하게 허용 (플레이어 스위치와 상자 스위치 모두)
+    if (target != TILE_EMPTY && target != TILE_SWITCH && target != TILE_BOX_SWITCH) {
         return false;
     }
 
     // 이전 위치의 타일 복구 (플레이어가 들어갈 수 있도록)
     bool was_on_switch = false;
+    bool was_box_switch = false;
     for (int i = 0; i < map->switch_count; i++) {
         if (map->switches[i].x == old_x && map->switches[i].y == old_y) {
             was_on_switch = true;
+            was_box_switch = map->switches[i].is_box_switch;
             break;
         }
     }
     if (was_on_switch) {
-        // 스위치 위였으면 스위치로 복구
-        map_set_tile(map, old_x, old_y, TILE_SWITCH);
+        // 스위치 위였으면 스위치 타입에 맞게 복구
+        map_set_tile(map, old_x, old_y, was_box_switch ? TILE_BOX_SWITCH : TILE_SWITCH);
     } else {
         // 스위치 위가 아니었으면 EMPTY로 (플레이어가 들어갈 수 있도록)
         map_set_tile(map, old_x, old_y, TILE_EMPTY);
@@ -560,9 +575,9 @@ void map_update_boxes(Map* map, float delta_time) {
             is_on_ground = true; // 맵 밖 = 바닥에 있음
         } else {
             TileType tile_below = map_get_tile(map, box_x, box_y + 1);
-            // 벽, 바닥, 스위치, 다른 상자는 지면으로 간주
+            // 벽, 바닥, 스위치(플레이어/상자 모두), 다른 상자는 지면으로 간주
             if (tile_below == TILE_WALL || tile_below == TILE_FLOOR ||
-                tile_below == TILE_SWITCH || tile_below == TILE_BOX) {
+                tile_below == TILE_SWITCH || tile_below == TILE_BOX_SWITCH || tile_below == TILE_BOX) {
                 is_on_ground = true;
             }
         }
@@ -617,7 +632,7 @@ void map_update_boxes(Map* map, float delta_time) {
                 }
                 
                 // 바로 아래가 빈 공간이면 계속 낙하
-                if (tile_below == TILE_EMPTY || tile_below == TILE_SWITCH ||
+                if (tile_below == TILE_EMPTY || tile_below == TILE_SWITCH || tile_below == TILE_BOX_SWITCH ||
                     tile_below == TILE_FIREBOY_START || tile_below == TILE_WATERGIRL_START) {
                     
                     // 계속 낙하
@@ -697,22 +712,23 @@ void map_update_switches(Map* map, int fireboy_x, int fireboy_y, int watergirl_x
         int switch_x = map->switches[i].x;
         int switch_y = map->switches[i].y;
         
-        // 플레이어가 스위치 위에 있는지 확인
-        bool player_on_switch = (fireboy_x == switch_x && fireboy_y == switch_y) ||
-                                (watergirl_x == switch_x && watergirl_y == switch_y);
-        
-        // 상자가 스위치 위에 있는지 확인
-        bool box_on_switch = false;
-        for (int j = 0; j < map->box_count; j++) {
-            if (map->boxes[j].active && 
-                map->boxes[j].x == switch_x && map->boxes[j].y == switch_y) {
-                box_on_switch = true;
-                break;
+        if (map->switches[i].is_box_switch) {
+            // 상자 스위치: 상자만 활성화 가능
+            bool box_on_switch = false;
+            for (int j = 0; j < map->box_count; j++) {
+                if (map->boxes[j].active && 
+                    map->boxes[j].x == switch_x && map->boxes[j].y == switch_y) {
+                    box_on_switch = true;
+                    break;
+                }
             }
+            map->switches[i].activated = box_on_switch;
+        } else {
+            // 플레이어 스위치: 플레이어만 활성화 가능
+            bool player_on_switch = (fireboy_x == switch_x && fireboy_y == switch_y) ||
+                                    (watergirl_x == switch_x && watergirl_y == switch_y);
+            map->switches[i].activated = player_on_switch;
         }
-        
-        // 플레이어나 상자가 스위치 위에 있으면 활성화
-        map->switches[i].activated = (player_on_switch || box_on_switch);
     }
 }
 

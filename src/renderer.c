@@ -111,7 +111,7 @@ void render_tile_with_map(TileType tile, int screen_x, int screen_y, const Map* 
             break;
             
         case TILE_SWITCH:
-            // 스위치는 활성화 상태에 따라 색상 변경
+            // 플레이어 스위치는 활성화 상태에 따라 색상 변경
             if (map && map_x >= 0 && map_y >= 0) {
                 int switch_idx = map_find_switch(map, map_x, map_y);
                 if (switch_idx >= 0 && map_is_switch_activated(map, switch_idx)) {
@@ -126,6 +126,26 @@ void render_tile_with_map(TileType tile, int screen_x, int screen_y, const Map* 
             } else {
                 // 기본 색상 (Map 정보 없을 때)
                 console_set_color(COLOR_GREEN, COLOR_BLACK);
+                printf("○ ");
+            }
+            break;
+            
+        case TILE_BOX_SWITCH:
+            // 상자 스위치는 활성화 상태에 따라 색상 변경 (파란색으로 구분)
+            if (map && map_x >= 0 && map_y >= 0) {
+                int switch_idx = map_find_switch(map, map_x, map_y);
+                if (switch_idx >= 0 && map_is_switch_activated(map, switch_idx)) {
+                    // 활성화됨: 밝은 파란색
+                    console_set_color(COLOR_BLUE, COLOR_BLUE);
+                    printf("● ");
+                } else {
+                    // 비활성화: 어두운 파란색
+                    console_set_color(COLOR_BLUE, COLOR_BLACK);
+                    printf("○ ");
+                }
+            } else {
+                // 기본 색상 (Map 정보 없을 때)
+                console_set_color(COLOR_BLUE, COLOR_BLACK);
                 printf("○ ");
             }
             break;
@@ -265,7 +285,7 @@ void render_map_no_flicker(const Map* map, int camera_x, int camera_y) {
             bool needs_render = false;
             if (!prev_frame_buffer || prev_frame_buffer[buffer_idx] != current_tile) {
                 needs_render = true;
-            } else if (current_tile == TILE_SWITCH || current_tile == TILE_DOOR) {
+            } else if (current_tile == TILE_SWITCH || current_tile == TILE_BOX_SWITCH || current_tile == TILE_DOOR) {
                 // 스위치/도어는 타일 타입이 같아도 상태가 바뀔 수 있음
                 needs_render = true;
             }
@@ -322,7 +342,7 @@ void render_map_no_flicker_with_players(const Map* map, int camera_x, int camera
             bool needs_render = false;
             if (!prev_frame_buffer || prev_frame_buffer[buffer_idx] != current_tile) {
                 needs_render = true;
-            } else if (current_tile == TILE_SWITCH || current_tile == TILE_DOOR) {
+            } else if (current_tile == TILE_SWITCH || current_tile == TILE_BOX_SWITCH || current_tile == TILE_DOOR) {
                 // 스위치/도어는 타일 타입이 같아도 상태가 바뀔 수 있음
                 needs_render = true;
             }
