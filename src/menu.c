@@ -6,70 +6,280 @@
 #include <string.h>
 #include <stdlib.h>
 
-// 타이틀 그리기
-static void draw_title(void) {
-    console_clear();
-    console_set_cursor_position(0, 2);
+// ============================================================================
+// 문자열의 화면 표시 폭 계산 (한글 2칸, ASCII 1칸)
+// ============================================================================
+static int get_display_width(const char* str) {
+    int width = 0;
+    int i = 0;
+    
+    while (str[i] != '\0') {
+        unsigned char ch = (unsigned char)str[i];
+        
+        if ((ch & 0x80) == 0) {
+            // ASCII (1바이트)
+            width += 1;
+            i += 1;
+        } else if ((ch & 0xE0) == 0xC0) {
+            // 2바이트 UTF-8
+            width += 1;
+            i += 2;
+        } else if ((ch & 0xF0) == 0xE0) {
+            // 3바이트 UTF-8 (한글)
+            width += 2;
+            i += 3;
+        } else if ((ch & 0xF8) == 0xF0) {
+            // 4바이트 UTF-8
+            width += 2;
+            i += 4;
+        } else {
+            i += 1;
+        }
+    }
+    
+    return width;
+}
+
+// ============================================================================
+// 타이틀 영역 그리기 (전체 화면: 타이틀 + 메뉴 + 안내)
+// ============================================================================
+static void draw_title(int selected) {
+    const char* menu_items[] = {
+        "게임하기",
+        "게임설명", 
+        "랭킹보기",
+        "종료"
+    };
+    const int menu_count = 4;
+    const int menu_start_y = 16;
+    const int menu_x = 25;
+    const int text_area_width = 36;  // 메뉴 텍스트 영역 너비
+    
+    console_set_cursor_position(0, 0);
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    console_set_attribute(ATTR_BOLD);
+    
+    // 상단 테두리
+    printf("╔════════════════════════════════════════════════════════════════════════════════╗\n");
+    printf("║                                                                                ║\n");
     
     // FIREBOY 타이틀
     console_set_color(COLOR_RED, COLOR_BLACK);
-    printf("               ███████ ██ ██████  ███████ ██████   ██████  ██    ██\n");
-    printf("               ██      ██ ██   ██ ██      ██   ██ ██    ██  ██  ██ \n");
-    printf("               █████   ██ ██████  █████   ██████  ██    ██   ████  \n");
-    printf("               ██      ██ ██   ██ ██      ██   ██ ██    ██    ██   \n");
-    printf("               ██      ██ ██   ██ ███████ ██████   ██████     ██   \n");
-    console_reset_color();
-    printf("\n\n\n");
+    printf("║               ███████ ██ ██████  ███████ ██████   ██████  ██    ██             ║\n");
+    printf("║               ██      ██ ██   ██ ██      ██   ██ ██    ██  ██  ██              ║\n");
+    printf("║               █████   ██ ██████  █████   ██████  ██    ██   ████               ║\n");
+    printf("║               ██      ██ ██   ██ ██      ██   ██ ██    ██    ██                ║\n");
+    printf("║               ██      ██ ██   ██ ███████ ██████   ██████     ██                ║\n");
+    
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    printf("║                                                                                ║\n");
     
     // WATERGIRL 타이틀
     console_set_color(COLOR_CYAN, COLOR_BLACK);
-    printf("       ██     ██  █████  ████████ ███████ ██████   ██████  ██ ██████  ██\n");
-    printf("       ██     ██ ██   ██    ██    ██      ██   ██ ██       ██ ██   ██ ██\n");
-    printf("       ██  █  ██ ███████    ██    █████   ██████  ██   ███ ██ ██████  ██\n");
-    printf("       ██ ███ ██ ██   ██    ██    ██      ██   ██ ██    ██ ██ ██   ██ ██\n");
-    printf("        ███ ███  ██   ██    ██    ███████ ██   ██  ██████  ██ ██   ██ ███████\n");
-    console_reset_color();
-    printf("\n");
+    printf("║       ██     ██  █████  ████████ ███████ ██████   ██████  ██ ██████  ██        ║\n");
+    printf("║       ██     ██ ██   ██    ██    ██      ██   ██ ██       ██ ██   ██ ██        ║\n");
+    printf("║       ██  █  ██ ███████    ██    █████   ██████  ██   ███ ██ ██████  ██        ║\n");
+    printf("║       ██ ███ ██ ██   ██    ██    ██      ██   ██ ██    ██ ██ ██   ██ ██        ║\n");
+    printf("║        ███ ███  ██   ██    ██    ███████ ██   ██  ██████  ██ ██   ██ ██████    ║\n");
     
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    printf("║                                                                                ║\n");
+    printf("║                                                                                ║\n");
+    printf("║                                                                                ║\n");
 
     
-    // 조작 안내
-    console_set_cursor_position(0, 28);
-    console_set_color(COLOR_GREEN, COLOR_BLACK);
-    printf("               ↑↓ 또는 W/S: 메뉴 이동 | Enter: 선택\n");
-    console_reset_color();
-    fflush(stdout);
-}
-
-// 메뉴 아이템 그리기
-static void draw_menu_items(int selected) {
-    const char* menu_items[] = {
-        "🎮 게임하기",
-        "📖 게임설명", 
-        "🏆 랭킹보기",
-        "🚪 종료"
-    };
-    const int menu_count = 4;
-    
+    // 메뉴 아이템들 (각 줄을 완전히 새로 구성)
     for (int i = 0; i < menu_count; i++) {
-        console_set_cursor_position(30, 19 + i * 2);
-        printf("                              ");
-        console_set_cursor_position(30, 19 + i * 2);
+        // 왼쪽 테두리
+        console_set_color(COLOR_YELLOW, COLOR_BLACK);
+        printf("║");
+        
+        // 왼쪽 공백 (menu_x - 1칸)
+        for (int j = 0; j < menu_x - 1; j++) {
+            printf(" ");
+        }
         
         if (i == selected) {
-            console_set_color(COLOR_BLACK, COLOR_YELLOW);
+            // 선택된 메뉴 아이템 (중앙 정렬)
+            console_set_color(COLOR_YELLOW, COLOR_BLACK);
             console_set_attribute(ATTR_BOLD);
-            printf("  ▶ %s ◀  ", menu_items[i]);
+            
+            // "  ▶ " (4칸) + 메뉴텍스트 + " ◀" (3칸) = content_width
+            int content_width = 4 + get_display_width(menu_items[i]) + 3;
+            int total_padding = text_area_width - content_width;
+            int left_padding = total_padding / 2;
+            int text_right_padding = total_padding - left_padding;
+            
+            // 좌측 공백
+            for (int j = 0; j < left_padding; j++) {
+                printf(" ");
+            }
+            // 텍스트 (화살표 포함)
+            printf("  ▶ %s ◀", menu_items[i]);
+            // 우측 공백
+            for (int j = 0; j < text_right_padding; j++) {
+                printf(" ");
+            }
         } else {
+            // 선택되지 않은 메뉴 아이템 (중앙 정렬)
             console_set_color(COLOR_WHITE, COLOR_BLACK);
-            printf("    %s    ", menu_items[i]);
+            
+            int item_width = get_display_width(menu_items[i]);
+            int total_padding = text_area_width - item_width;
+            int left_padding = total_padding / 2;
+            int text_right_padding = total_padding - left_padding;
+            
+            // 좌측 공백
+            for (int j = 0; j < left_padding; j++) {
+                printf(" ");
+            }
+            // 텍스트
+            printf("%s", menu_items[i]);
+            // 우측 공백
+            for (int j = 0; j < text_right_padding; j++) {
+                printf(" ");
+            }
         }
-        console_reset_color();
+        
+        // 오른쪽 공백 (나머지 공간) - 더 많은 공백 추가
+        int final_right_padding = 80 - menu_x - text_area_width - 1; // 80 - menu_x - text_area_width - 1(오른쪽 테두리)
+        for (int j = 0; j < final_right_padding; j++) {
+            printf(" ");
+        }
+        
+        // 오른쪽 테두리 + 개행
+        console_set_color(COLOR_YELLOW, COLOR_BLACK);
+        printf("║");
+        
+        // 줄 끝까지 공백으로 채워서 다음 줄의 왼쪽 테두리가 보이지 않도록
+        int current_pos = menu_x + text_area_width + final_right_padding + 1; // 현재 위치
+        int remaining = 80 - current_pos;
+        if (remaining > 0) {
+            for (int j = 0; j < remaining; j++) {
+                printf(" ");
+            }
+        }
+        printf("\n");
     }
+    
+    // 빈 줄
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    printf("║                                                                                ║\n");
+    printf("║                                                                                ║\n");
+
+    // 하단 안내
+    printf("║                                                                                ║\n");
+    console_set_color(COLOR_CYAN, COLOR_BLACK); 
+    printf("║                    ↑↓ 또는 W/S: 메뉴 이동 | Enter: 선택                        ║\n");
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    console_set_attribute(ATTR_BOLD);
+    printf("║                                                                                ║\n");
+    
+    // 하단 테두리
+    printf("╚════════════════════════════════════════════════════════════════════════════════╝");
+    console_reset_color();
     fflush(stdout);
 }
 
+// ============================================================================
+// 메뉴 아이템만 다시 그리기 (선택 변경 시 사용)
+// ============================================================================
+static void draw_menu_items_only(int selected) {
+    const char* menu_items[] = {
+        "게임하기",
+        "게임설명", 
+        "랭킹보기",
+        "종료"
+    };
+    const int menu_count = 4;
+    const int menu_start_y = 16;
+    const int menu_x = 25;
+    const int text_area_width = 36;  // 메뉴 텍스트 영역 너비
+    
+    // 각 메뉴 아이템 줄만 다시 그리기 (각 줄을 완전히 새로 구성)
+    for (int i = 0; i < menu_count; i++) {
+        // 해당 줄의 시작 위치로 이동
+        console_set_cursor_position(0, menu_start_y + i);
+        
+        // 왼쪽 테두리
+        console_set_color(COLOR_YELLOW, COLOR_BLACK);
+        printf("║");
+        
+        // 왼쪽 공백 (menu_x - 1칸)
+        for (int j = 0; j < menu_x - 1; j++) {
+            printf(" ");
+        }
+        
+        if (i == selected) {
+            // 선택된 메뉴 아이템 (중앙 정렬)
+            console_set_color(COLOR_YELLOW, COLOR_BLACK);
+            console_set_attribute(ATTR_BOLD);
+            
+            // "  ▶ " (4칸) + 메뉴텍스트 + " ◀" (3칸) = content_width
+            int content_width = 4 + get_display_width(menu_items[i]) + 3;
+            int total_padding = text_area_width - content_width;
+            int left_padding = total_padding / 2;
+            int text_right_padding = total_padding - left_padding;
+            
+            // 좌측 공백
+            for (int j = 0; j < left_padding; j++) {
+                printf(" ");
+            }
+            // 텍스트 (화살표 포함)
+            printf("  ▶ %s ◀", menu_items[i]);
+            // 우측 공백
+            for (int j = 0; j < text_right_padding; j++) {
+                printf(" ");
+            }
+        } else {
+            // 선택되지 않은 메뉴 아이템 (중앙 정렬)
+            console_set_color(COLOR_WHITE, COLOR_BLACK);
+            
+            int item_width = get_display_width(menu_items[i]);
+            int total_padding = text_area_width - item_width;
+            int left_padding = total_padding / 2;
+            int text_right_padding = total_padding - left_padding;
+            
+            // 좌측 공백
+            for (int j = 0; j < left_padding; j++) {
+                printf(" ");
+            }
+            // 텍스트
+            printf("%s", menu_items[i]);
+            // 우측 공백
+            for (int j = 0; j < text_right_padding; j++) {
+                printf(" ");
+            }
+        }
+        
+        // 오른쪽 공백 (나머지 공간) - 더 많은 공백 추가
+        int final_right_padding = 80 - menu_x - text_area_width - 1; // 80 - menu_x - text_area_width - 1(오른쪽 테두리)
+        for (int j = 0; j < final_right_padding; j++) {
+            printf(" ");
+        }
+        
+        // 오른쪽 테두리
+        console_set_color(COLOR_YELLOW, COLOR_BLACK);
+        printf("║");
+        
+        // 줄 끝까지 공백으로 채워서 다음 줄의 왼쪽 테두리가 보이지 않도록
+        int current_pos = menu_x + text_area_width + final_right_padding + 1; // 현재 위치
+        int remaining = 80 - current_pos;
+        if (remaining > 0) {
+            for (int j = 0; j < remaining; j++) {
+                printf(" ");
+            }
+        }
+        printf("\n");
+    }
+    
+    console_reset_color();
+    fflush(stdout);
+}
+
+// ============================================================================
 // 메인 메뉴
+// ============================================================================
 MenuResult menu_show_main(void) {
     MenuResult result = {0};
     result.start_game = false;
@@ -79,7 +289,9 @@ MenuResult menu_show_main(void) {
     int selected = 0;
     int last_selected = -1;
     
-    draw_title();
+    // 초기 화면 그리기
+    console_clear();
+    draw_title(selected);
     
     while (true) {
         input_update();
@@ -113,22 +325,25 @@ MenuResult menu_show_main(void) {
                         result.exit_game = false;
                         return result;
                     }
+                    // 메뉴로 돌아올 때 화면 다시 그리기
                     console_clear();
-                    draw_title();
+                    draw_title(selected);
                     last_selected = -1;
                     break;
                     
                 case 1: // 게임설명
                     menu_show_instructions();
+                    // 메뉴로 돌아올 때 화면 다시 그리기
                     console_clear();
-                    draw_title();
+                    draw_title(selected);
                     last_selected = -1;
                     break;
                     
                 case 2: // 랭킹보기
                     menu_show_ranking();
+                    // 메뉴로 돌아올 때 화면 다시 그리기
                     console_clear();
-                    draw_title();
+                    draw_title(selected);
                     last_selected = -1;
                     break;
                     
@@ -143,8 +358,9 @@ MenuResult menu_show_main(void) {
             return result;
         }
         
+        // 선택된 항목이 변경되었을 때만 메뉴 아이템만 다시 그리기 (깜빡임 방지)
         if (selected != last_selected) {
-            draw_menu_items(selected);
+            draw_menu_items_only(selected);
             last_selected = selected;
         }
         
@@ -272,6 +488,7 @@ bool menu_get_player_name(char* name, int max_length) {
     char buffer[256] = {0};
     int buf_len = 0;  // 바이트 길이
     int char_count = 0;  // 문자 개수 (UTF-8 문자 기준)
+    int screen_width = 0;  // 화면 폭 (커서 위치 계산용)
     
     while (true) {
         unsigned char ch;
@@ -335,6 +552,7 @@ bool menu_get_player_name(char* name, int max_length) {
                 if (buf_len > 0) {
                     // UTF-8 문자 경계 찾기 (마지막 문자 제거)
                     int bytes_to_remove = 1;
+                    int char_start_pos = buf_len - 1;
                     // UTF-8 문자의 시작 바이트 찾기 (최대 4바이트 뒤까지 확인)
                     int check_start = buf_len - 1;
                     int check_end = (buf_len > 4) ? buf_len - 4 : 0;
@@ -343,22 +561,36 @@ bool menu_get_player_name(char* name, int max_length) {
                         // UTF-8 시작 바이트 확인 (0xxxxxxx 또는 11xxxxxx)
                         if ((b & 0x80) == 0 || (b & 0xC0) == 0xC0) {
                             bytes_to_remove = buf_len - i;
+                            char_start_pos = i;
                             break;
                         }
                     }
+                    
+                    // 제거할 문자의 화면 폭 계산
+                    unsigned char first_byte = (unsigned char)buffer[char_start_pos];
+                    int char_screen_width = 1;  // 기본값
+                    if ((first_byte & 0x80) == 0) {
+                        char_screen_width = 1;  // ASCII
+                    } else if ((first_byte & 0xF0) == 0xE0) {
+                        char_screen_width = 2;  // 3바이트 UTF-8 (한글)
+                    } else if ((first_byte & 0xF8) == 0xF0) {
+                        char_screen_width = 2;  // 4바이트 UTF-8 (이모지 등)
+                    }
+                    // 2바이트 UTF-8은 1칸으로 가정
                     
                     // 버퍼에서 문자 제거
                     buf_len -= bytes_to_remove;
                     char_count--;
                     if (char_count < 0) char_count = 0;
+                    screen_width -= char_screen_width;
+                    if (screen_width < 0) screen_width = 0;
                     
-                    // 백스페이스 처리: 마지막 문자만 지우기
-                    console_set_cursor_position(cursor_x + buf_len, cursor_y);
-                    // 제거된 바이트 수만큼 공백 출력
-                    for (int i = 0; i < bytes_to_remove; i++) {
+                    // 백스페이스 처리: 제거된 문자의 화면 폭만큼 공백 출력
+                    console_set_cursor_position(cursor_x + screen_width, cursor_y);
+                    for (int i = 0; i < char_screen_width; i++) {
                         printf(" ");
                     }
-                    console_set_cursor_position(cursor_x + buf_len, cursor_y);
+                    console_set_cursor_position(cursor_x + screen_width, cursor_y);
                     fflush(stdout);
                 }
             }
@@ -367,14 +599,20 @@ bool menu_get_player_name(char* name, int max_length) {
                 // UTF-8 문자 시작 바이트 확인
                 unsigned char first_byte = (unsigned char)ch;
                 int utf8_bytes_needed = 1;
+                int char_screen_width = 1;  // 화면 폭 (기본값)
+                
                 if ((first_byte & 0x80) == 0) {
                     utf8_bytes_needed = 1;  // ASCII
+                    char_screen_width = 1;
                 } else if ((first_byte & 0xE0) == 0xC0) {
                     utf8_bytes_needed = 2;
+                    char_screen_width = 1;  // 2바이트 UTF-8 (보통 1칸)
                 } else if ((first_byte & 0xF0) == 0xE0) {
                     utf8_bytes_needed = 3;  // 한글
+                    char_screen_width = 2;
                 } else if ((first_byte & 0xF8) == 0xF0) {
                     utf8_bytes_needed = 4;
+                    char_screen_width = 2;  // 4바이트 UTF-8 (이모지 등)
                 }
                 
                 // 첫 바이트 저장
@@ -393,16 +631,17 @@ bool menu_get_player_name(char* name, int max_length) {
                 }
                 
                 char_count++;
+                screen_width += char_screen_width;
                 
                 // 입력된 문자만 출력 (화면 다시 그리지 않음)
                 // 현재 입력 위치에 문자 출력
                 int output_pos = buf_len - utf8_bytes_needed;
-                console_set_cursor_position(cursor_x + output_pos, cursor_y);
+                console_set_cursor_position(cursor_x + screen_width - char_screen_width, cursor_y);
                 for (int i = 0; i < utf8_bytes_needed; i++) {
                     printf("%c", buffer[output_pos + i]);
                 }
-                // 커서를 입력 끝 위치로 이동
-                console_set_cursor_position(cursor_x + buf_len, cursor_y);
+                // 커서를 입력 끝 위치로 이동 (화면 폭 기준)
+                console_set_cursor_position(cursor_x + screen_width, cursor_y);
                 fflush(stdout);
             }
         }
@@ -473,3 +712,4 @@ bool menu_get_player_name(char* name, int max_length) {
     }
 #endif
 }
+

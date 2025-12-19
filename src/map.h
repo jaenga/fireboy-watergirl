@@ -5,27 +5,44 @@
 
 // 타일 종류
 typedef enum {
-    TILE_EMPTY = ' ',      // 빈 공간
-    TILE_WALL = '#',       // 벽
-    TILE_FLOOR = '.',      // 바닥
-    TILE_FIRE_TERRAIN = 'F', // 불 지형 (Fireboy만 통과 가능)
-    TILE_WATER_TERRAIN = 'W', // 물 지형 (Watergirl만 통과 가능)
-    TILE_POISON_TERRAIN = 'Z', // 독 지형 (모든 플레이어 사망)
-    TILE_BOX = 'B',        // 상자
-    TILE_SWITCH = 'S',     // 플레이어 스위치 (Fireboy/Watergirl이 활성화)
-    TILE_BOX_SWITCH = 'X', // 상자 스위치 (상자만 활성화 가능)
-    TILE_DOOR = 'D',       // 도어
-    TILE_MOVING_PLATFORM = 'P', // 이동 발판 (세로 - 위아래)
-    TILE_HORIZONTAL_PLATFORM = 'H', // 이동 발판 (가로 - 좌우)
-    TILE_TOGGLE_PLATFORM = 'T', // 토글 발판 (스위치로 위/아래 이동)
-    TILE_TOGGLE_TARGET = 't',   // 토글 발판 목표 위치 (보이지 않음)
-    TILE_VERTICAL_WALL = 'V',   // 수직 이동 벽 (박스+스위치로 제어)
-    TILE_VERTICAL_TARGET = 'v', // 수직 벽 목표 위치 (보이지 않음)
-    TILE_FIRE_GEM = 'R',   // Fireboy 전용 보석
-    TILE_WATER_GEM = 'b',  // Watergirl 전용 보석
-    TILE_FIREBOY_START = 'f',  // Fireboy 시작 위치
-    TILE_WATERGIRL_START = 'w', // Watergirl 시작 위치
-    TILE_EXIT = 'E'        // 출구
+    // === 기본 타일 ===
+    TILE_EMPTY = ' ',               // 빈 공간
+    TILE_WALL = '#',                // 벽
+    TILE_FLOOR = '.',               // 바닥
+    
+    // === 지형 (속성) ===
+    TILE_FIRE_TERRAIN = 'F',        // 불 지형 (Fireboy만 통과 가능)
+    TILE_WATER_TERRAIN = 'W',       // 물 지형 (Watergirl만 통과 가능)
+    TILE_POISON_TERRAIN = 'Z',      // 독 지형 (모든 플레이어 사망)
+    
+    // === 오브젝트 ===
+    TILE_BOX = 'B',                 // 상자
+    TILE_DOOR = 'D',                // 도어
+    
+    // === 스위치 ===
+    TILE_SWITCH = 'S',              // 플레이어 스위치
+    TILE_BOX_SWITCH = 'X',          // 상자 스위치
+    
+    // === 발판 (이동) ===
+    TILE_MOVING_PLATFORM = 'P',     // 세로 이동 발판 (위아래)
+    TILE_HORIZONTAL_PLATFORM = 'H', // 가로 이동 발판 (좌우)
+    
+    // === 발판 (토글) ===
+    TILE_TOGGLE_PLATFORM = 'T',     // 토글 발판 (스위치로 제어)
+    TILE_TOGGLE_TARGET = 't',       // 토글 발판 목표 위치
+    
+    // === 수직 벽 ===
+    TILE_VERTICAL_WALL = 'V',       // 수직 이동 벽
+    TILE_VERTICAL_TARGET = 'v',     // 수직 벽 목표 위치
+    
+    // === 보석 ===
+    TILE_FIRE_GEM = 'R',            // Fireboy 전용 보석 (빨강)
+    TILE_WATER_GEM = 'b',           // Watergirl 전용 보석 (파랑)
+    
+    // === 시작/출구 ===
+    TILE_FIREBOY_START = 'f',       // Fireboy 시작 위치
+    TILE_WATERGIRL_START = 'w',     // Watergirl 시작 위치
+    TILE_EXIT = 'E'                 // 출구
 } TileType;
 
 // 맵 구조체
