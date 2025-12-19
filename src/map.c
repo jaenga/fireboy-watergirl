@@ -210,8 +210,8 @@ Map* map_load_from_file(const char* filename) {
                         map->platforms[idx].vx = 0.0f;
                         map->platforms[idx].vy = -2.0f; // 위로 이동 시작
                         map->platforms[idx].vertical = true;
-                        // 시작 위치 기준으로 위아래 4칸 범위 내에서 왕복 (맵 안으로 클램프)
-                        int range = 4;
+                        // 시작 위치 기준으로 위아래 2칸 범위 내에서 왕복 (맵 안으로 클램프)
+                        int range = 2;
                         int min_y = y - range;
                         int max_y = y + range;
                         if (min_y < 0) min_y = 0;
