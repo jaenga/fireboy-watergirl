@@ -7,9 +7,79 @@
 #include "menu.h"
 #include "ranking.h"
 
+#ifdef __APPLE__
+    #include <sys/wait.h>
+    #include <signal.h>
+#endif
+
 // 스테이지 관리
 static int current_stage = 1;
 #define MAX_STAGE 3
+
+// 음악 재생 프로세스 ID (macOS에서만 사용)
+#ifdef __APPLE__
+    static pid_t music_pid = 0;
+    
+    // 시그널 핸들러 함수
+    static void signal_handler(int sig) {
+        // 핸들러에서는 waitpid 없이 kill만 수행 (더 안전함)
+        if (music_pid > 0) {
+            kill(music_pid, SIGTERM);
+            music_pid = 0;
+        }
+        // 기본 동작으로 복귀하여 프로그램 종료
+        signal(sig, SIG_DFL);
+        raise(sig);
+    }
+    
+    // 시그널 핸들러 초기화 함수
+    static void music_init_signal_handlers(void) {
+        signal(SIGINT, signal_handler);   // Ctrl+C
+        signal(SIGTERM, signal_handler);  // 종료 시그널
+        signal(SIGHUP, signal_handler);   // 터미널 닫힘
+    }
+#endif
+
+// 음악 재생 함수
+void music_play(const char* filename) {
+#ifdef __APPLE__
+    // 이전 음악 중지
+    music_stop();
+    
+    // 새 음악 재생 (백그라운드)
+    pid_t pid = fork();
+    if (pid == 0) {
+        // 자식 프로세스: afplay 직접 실행
+        // execlp를 사용하여 PATH에서 afplay를 찾아 실행
+        execlp("afplay", "afplay", filename, (char*)NULL);
+        // execlp 실패 시 종료
+        exit(1);
+    } else if (pid > 0) {
+        // 부모 프로세스: afplay의 실제 PID 저장
+        music_pid = pid;
+    }
+#else
+    // macOS가 아닌 경우 음악 재생 미지원
+    (void)filename;
+#endif
+}
+
+// 음악 중지 함수
+void music_stop(void) {
+#ifdef __APPLE__
+    if (music_pid > 0) {
+        // 프로세스가 아직 실행 중인지 확인
+        int status;
+        if (waitpid(music_pid, &status, WNOHANG) == 0) {
+            // 실행 중이면 SIGTERM으로 종료
+            kill(music_pid, SIGTERM);
+            // 좀비 프로세스 방지를 위해 대기
+            waitpid(music_pid, &status, 0);
+        }
+        music_pid = 0;
+    }
+#endif
+}
 
 // 스테이지 파일 경로 생성
 static void get_stage_filename(int stage_id, char* buffer, size_t buffer_size) {
@@ -105,6 +175,11 @@ void game_loop(const char* player_name) {
     printf("맵 로드 성공! (크기: %dx%d)\n", map->width, map->height);
     printf("Enter 키를 눌러 게임을 시작하세요...\n");
     
+    // 맵 로드 성공 후 스테이지 음악 재생
+    char music_file[256];
+    snprintf(music_file, sizeof(music_file), "assets/stage%d.mp3", current_stage);
+    music_play(music_file);
+    
     // 게임 시작 시 보석 개수 리셋
     player_reset_gem_count();
     player_reset_death_count();
@@ -150,6 +225,11 @@ void game_loop(const char* player_name) {
                 if (load_stage(current_stage, &map, &fireboy, &watergirl,
                               &prev_fireboy_x, &prev_fireboy_y,
                               &prev_watergirl_x, &prev_watergirl_y)) {
+                    // 스테이지 음악 재생
+                    char music_file[256];
+                    snprintf(music_file, sizeof(music_file), "assets/stage%d.mp3", current_stage);
+                    music_play(music_file);
+                    
                     game_start_time = time(NULL); // 타이머 리셋
                     render_map_no_flicker_with_players(map, camera_x, camera_y,
                                                       fireboy.x, fireboy.y,
@@ -286,6 +366,11 @@ void game_loop(const char* player_name) {
                 if (load_stage(current_stage, &map, &fireboy, &watergirl,
                               &prev_fireboy_x, &prev_fireboy_y,
                               &prev_watergirl_x, &prev_watergirl_y)) {
+                    // 스테이지 음악 재생
+                    char music_file[256];
+                    snprintf(music_file, sizeof(music_file), "assets/stage%d.mp3", current_stage);
+                    music_play(music_file);
+                    
                     game_start_time = time(NULL); // 타이머 리셋
                     
                     // 화면 다시 그리기
@@ -436,6 +521,7 @@ void game_loop(const char* player_name) {
     }
     
     // 정리
+    music_stop(); // 게임 종료 시 음악 중지
     map_destroy(map);
     renderer_cleanup();
 }
@@ -443,6 +529,14 @@ void game_loop(const char* player_name) {
 // 메인 함수
 int main(void) {
     game_init();
+    
+#ifdef __APPLE__
+    // TODO: 시그널 핸들러 초기화 (프로그램 시작 시 한 번만 호출)
+    music_init_signal_handlers();
+#endif
+    
+    // 프로그램 시작 시 intro 음악 재생
+    music_play("assets/intro.mp3");
     
     // 메인 메뉴 루프
     while (true) {
@@ -454,9 +548,13 @@ int main(void) {
         
         if (result.start_game) {
             game_loop(result.player_name);
+            // 게임 종료 후 메뉴로 돌아오면 intro 음악 다시 재생
+            music_play("assets/intro.mp3");
         }
     }
     
+    // 프로그램 종료 시 음악 중지
+    music_stop();
     game_cleanup();
     
     printf("\n프로그램을 종료합니다.\n");
