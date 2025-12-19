@@ -44,16 +44,6 @@ static int get_display_width(const char* str) {
 // 타이틀 영역 그리기 (전체 화면: 타이틀 + 메뉴 + 안내)
 // ============================================================================
 static void draw_title(int selected) {
-    const char* menu_items[] = {
-        "게임하기",
-        "게임설명", 
-        "랭킹보기",
-        "종료"
-    };
-    const int menu_count = 4;
-    const int menu_start_y = 16;
-    const int menu_x = 25;
-    const int text_area_width = 36;  // 메뉴 텍스트 영역 너비
     
     console_set_cursor_position(0, 0);
     console_set_color(COLOR_YELLOW, COLOR_BLACK);
@@ -71,7 +61,7 @@ static void draw_title(int selected) {
     printf("║               ██      ██ ██   ██ ██      ██   ██ ██    ██    ██                ║\n");
     printf("║               ██      ██ ██   ██ ███████ ██████   ██████     ██                ║\n");
     
-    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    console_set_color(COLOR_CYAN, COLOR_BLACK);
     printf("║                                                                                ║\n");
     
     // WATERGIRL 타이틀
@@ -88,82 +78,45 @@ static void draw_title(int selected) {
     printf("║                                                                                ║\n");
 
     
-    // 메뉴 아이템들 (각 줄을 완전히 새로 구성)
-    for (int i = 0; i < menu_count; i++) {
-        // 왼쪽 테두리
-        console_set_color(COLOR_YELLOW, COLOR_BLACK);
-        printf("║");
-        
-        // 왼쪽 공백 (menu_x - 1칸)
-        for (int j = 0; j < menu_x - 1; j++) {
-            printf(" ");
-        }
-        
-        if (i == selected) {
-            // 선택된 메뉴 아이템 (중앙 정렬)
-            console_set_color(COLOR_YELLOW, COLOR_BLACK);
-            console_set_attribute(ATTR_BOLD);
-            
-            // "  ▶ " (4칸) + 메뉴텍스트 + " ◀" (3칸) = content_width
-            int content_width = 4 + get_display_width(menu_items[i]) + 3;
-            int total_padding = text_area_width - content_width;
-            int left_padding = total_padding / 2;
-            int text_right_padding = total_padding - left_padding;
-            
-            // 좌측 공백
-            for (int j = 0; j < left_padding; j++) {
-                printf(" ");
-            }
-            // 텍스트 (화살표 포함)
-            printf("  ▶ %s ◀", menu_items[i]);
-            // 우측 공백
-            for (int j = 0; j < text_right_padding; j++) {
-                printf(" ");
-            }
-        } else {
-            // 선택되지 않은 메뉴 아이템 (중앙 정렬)
-            console_set_color(COLOR_WHITE, COLOR_BLACK);
-            
-            int item_width = get_display_width(menu_items[i]);
-            int total_padding = text_area_width - item_width;
-            int left_padding = total_padding / 2;
-            int text_right_padding = total_padding - left_padding;
-            
-            // 좌측 공백
-            for (int j = 0; j < left_padding; j++) {
-                printf(" ");
-            }
-            // 텍스트
-            printf("%s", menu_items[i]);
-            // 우측 공백
-            for (int j = 0; j < text_right_padding; j++) {
-                printf(" ");
-            }
-        }
-        
-        // 오른쪽 공백 (나머지 공간) - 더 많은 공백 추가
-        int final_right_padding = 80 - menu_x - text_area_width - 1; // 80 - menu_x - text_area_width - 1(오른쪽 테두리)
-        for (int j = 0; j < final_right_padding; j++) {
-            printf(" ");
-        }
-        
-        // 오른쪽 테두리 + 개행
-        console_set_color(COLOR_YELLOW, COLOR_BLACK);
-        printf("║");
-        
-        // 줄 끝까지 공백으로 채워서 다음 줄의 왼쪽 테두리가 보이지 않도록
-        int current_pos = menu_x + text_area_width + final_right_padding + 1; // 현재 위치
-        int remaining = 80 - current_pos;
-        if (remaining > 0) {
-            for (int j = 0; j < remaining; j++) {
-                printf(" ");
-            }
-        }
-        printf("\n");
+    // 메뉴 아이템들 
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    if (selected == 0) {
+        console_set_attribute(ATTR_BOLD);
+        printf("║                                ▶ 게임하기 ◀                                  ║\n");
+    } else {
+        console_set_color(COLOR_WHITE, COLOR_BLACK);
+        printf("║                                   게임하기                                     ║\n");
+    }
+    
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    if (selected == 1) {
+        console_set_attribute(ATTR_BOLD);
+        printf("║                                ▶ 게임설명 ◀                                  ║\n");
+    } else {
+        console_set_color(COLOR_WHITE, COLOR_BLACK);
+        printf("║                                   게임설명                                     ║\n");
+    }
+    
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    if (selected == 2) {
+        console_set_attribute(ATTR_BOLD);
+        printf("║                                ▶ 랭킹보기 ◀                                  ║\n");
+    } else {
+        console_set_color(COLOR_WHITE, COLOR_BLACK);
+        printf("║                                   랭킹보기                                     ║\n");
+    }
+    
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    if (selected == 3) {
+        console_set_attribute(ATTR_BOLD);
+        printf("║                                  ▶ 종료 ◀                                    ║\n");
+    } else {
+        console_set_color(COLOR_WHITE, COLOR_BLACK);
+        printf("║                                     종료                                       ║\n");
     }
     
     // 빈 줄
-    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    console_set_color(COLOR_CYAN, COLOR_BLACK);
     printf("║                                                                                ║\n");
     printf("║                                                                                ║\n");
 
@@ -185,92 +138,50 @@ static void draw_title(int selected) {
 // 메뉴 아이템만 다시 그리기 (선택 변경 시 사용)
 // ============================================================================
 static void draw_menu_items_only(int selected) {
-    const char* menu_items[] = {
-        "게임하기",
-        "게임설명", 
-        "랭킹보기",
-        "종료"
-    };
-    const int menu_count = 4;
     const int menu_start_y = 16;
-    const int menu_x = 25;
-    const int text_area_width = 36;  // 메뉴 텍스트 영역 너비
     
-    // 각 메뉴 아이템 줄만 다시 그리기 (각 줄을 완전히 새로 구성)
-    for (int i = 0; i < menu_count; i++) {
-        // 해당 줄의 시작 위치로 이동
-        console_set_cursor_position(0, menu_start_y + i);
-        
-        // 왼쪽 테두리
-        console_set_color(COLOR_YELLOW, COLOR_BLACK);
-        printf("║");
-        
-        // 왼쪽 공백 (menu_x - 1칸)
-        for (int j = 0; j < menu_x - 1; j++) {
-            printf(" ");
-        }
-        
-        if (i == selected) {
-            // 선택된 메뉴 아이템 (중앙 정렬)
-            console_set_color(COLOR_YELLOW, COLOR_BLACK);
-            console_set_attribute(ATTR_BOLD);
-            
-            // "  ▶ " (4칸) + 메뉴텍스트 + " ◀" (3칸) = content_width
-            int content_width = 4 + get_display_width(menu_items[i]) + 3;
-            int total_padding = text_area_width - content_width;
-            int left_padding = total_padding / 2;
-            int text_right_padding = total_padding - left_padding;
-            
-            // 좌측 공백
-            for (int j = 0; j < left_padding; j++) {
-                printf(" ");
-            }
-            // 텍스트 (화살표 포함)
-            printf("  ▶ %s ◀", menu_items[i]);
-            // 우측 공백
-            for (int j = 0; j < text_right_padding; j++) {
-                printf(" ");
-            }
-        } else {
-            // 선택되지 않은 메뉴 아이템 (중앙 정렬)
-            console_set_color(COLOR_WHITE, COLOR_BLACK);
-            
-            int item_width = get_display_width(menu_items[i]);
-            int total_padding = text_area_width - item_width;
-            int left_padding = total_padding / 2;
-            int text_right_padding = total_padding - left_padding;
-            
-            // 좌측 공백
-            for (int j = 0; j < left_padding; j++) {
-                printf(" ");
-            }
-            // 텍스트
-            printf("%s", menu_items[i]);
-            // 우측 공백
-            for (int j = 0; j < text_right_padding; j++) {
-                printf(" ");
-            }
-        }
-        
-        // 오른쪽 공백 (나머지 공간) - 더 많은 공백 추가
-        int final_right_padding = 80 - menu_x - text_area_width - 1; // 80 - menu_x - text_area_width - 1(오른쪽 테두리)
-        for (int j = 0; j < final_right_padding; j++) {
-            printf(" ");
-        }
-        
-        // 오른쪽 테두리
-        console_set_color(COLOR_YELLOW, COLOR_BLACK);
-        printf("║");
-        
-        // 줄 끝까지 공백으로 채워서 다음 줄의 왼쪽 테두리가 보이지 않도록
-        int current_pos = menu_x + text_area_width + final_right_padding + 1; // 현재 위치
-        int remaining = 80 - current_pos;
-        if (remaining > 0) {
-            for (int j = 0; j < remaining; j++) {
-                printf(" ");
-            }
-        }
-        printf("\n");
+    // 게임하기
+    console_set_cursor_position(0, menu_start_y);
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    if (selected == 0) {
+        console_set_attribute(ATTR_BOLD);
+        printf("║                                ▶ 게임하기 ◀                                  ║");
+    } else {
+        console_set_color(COLOR_WHITE, COLOR_BLACK);
+        printf("║                                   게임하기                                     ║");
+    }
+    
+    // 게임설명
+    console_set_cursor_position(0, menu_start_y + 1);
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    if (selected == 1) {
+        console_set_attribute(ATTR_BOLD);
+        printf("║                                ▶ 게임설명 ◀                                  ║");
+    } else {
+        console_set_color(COLOR_WHITE, COLOR_BLACK);
+        printf("║                                   게임설명                                     ║");
+    }
+    
+    // 랭킹보기
+    console_set_cursor_position(0, menu_start_y + 2);
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    if (selected == 2) {
+        console_set_attribute(ATTR_BOLD);
+        printf("║                                ▶ 랭킹보기 ◀                                  ║");
+    } else {
+        console_set_color(COLOR_WHITE, COLOR_BLACK);
+        printf("║                                   랭킹보기                                     ║");
+    }
+    
+    // 종료
+    console_set_cursor_position(0, menu_start_y + 3);
+    console_set_color(COLOR_YELLOW, COLOR_BLACK);
+    if (selected == 3) {
+        console_set_attribute(ATTR_BOLD);
+        printf("║                                  ▶ 종료 ◀                                    ║");
+    } else {
+        console_set_color(COLOR_WHITE, COLOR_BLACK);
+        printf("║                                     종료                                       ║");
     }
     
     console_reset_color();
