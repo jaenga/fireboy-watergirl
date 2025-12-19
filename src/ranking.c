@@ -150,10 +150,6 @@ void ranking_display(const RankingSystem* system) {
         if (inp.fireboy.enter || inp.watergirl.enter || inp.fireboy.escape) {
             break;
         }
-        #ifdef PLATFORM_WINDOWS
-        Sleep(50);
-        #else
         usleep(50000);
-        #endif
     }
 }

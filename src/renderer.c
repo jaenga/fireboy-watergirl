@@ -156,34 +156,6 @@ void render_tile_with_map(TileType tile, int screen_x, int screen_y, const Map* 
             }
             break;
             
-        case TILE_DOOR:
-            // 도어는 열림/닫힘 상태에 따라 색상 변경
-            if (map && map_x >= 0 && map_y >= 0) {
-                // map->doors에서 해당 위치의 도어 찾기
-                bool is_open = false;
-                for (int i = 0; i < map->door_count; i++) {
-                    if (map->doors[i].x == map_x && map->doors[i].y == map_y) {
-                        is_open = map->doors[i].is_open;
-                        break;
-                    }
-                }
-                
-                if (is_open) {
-                    // 열린 문: 초록색으로 표시
-                    console_set_color(COLOR_GREEN, COLOR_BLACK);
-                    printf("[ ]");
-                } else {
-                    // 닫힌 문: 빨간색으로 표시
-                    console_set_color(COLOR_RED, COLOR_BLACK);
-                    printf("▤ ");
-                }
-            } else {
-                // 기본 색상 (Map 정보 없을 때)
-                console_set_color(COLOR_RED, COLOR_BLACK);
-                printf("▤ ");
-            }
-            break;
-            
         case TILE_VERTICAL_WALL:
             console_set_color(COLOR_GREEN, COLOR_BLACK);
             printf("█ "); // 수직 벽 (초록색)
@@ -296,8 +268,8 @@ void render_map_no_flicker(const Map* map, int camera_x, int camera_y) {
             bool needs_render = false;
             if (!prev_frame_buffer || prev_frame_buffer[buffer_idx] != current_tile) {
                 needs_render = true;
-            } else if (current_tile == TILE_SWITCH || current_tile == TILE_BOX_SWITCH || current_tile == TILE_DOOR) {
-                // 스위치/도어는 타일 타입이 같아도 상태가 바뀔 수 있음
+            } else if (current_tile == TILE_SWITCH || current_tile == TILE_BOX_SWITCH) {
+                // 스위치는 타일 타입이 같아도 상태가 바뀔 수 있음
                 needs_render = true;
             }
             
@@ -353,8 +325,8 @@ void render_map_no_flicker_with_players(const Map* map, int camera_x, int camera
             bool needs_render = false;
             if (!prev_frame_buffer || prev_frame_buffer[buffer_idx] != current_tile) {
                 needs_render = true;
-            } else if (current_tile == TILE_SWITCH || current_tile == TILE_BOX_SWITCH || current_tile == TILE_DOOR) {
-                // 스위치/도어는 타일 타입이 같아도 상태가 바뀔 수 있음
+            } else if (current_tile == TILE_SWITCH || current_tile == TILE_BOX_SWITCH) {
+                // 스위치는 타일 타입이 같아도 상태가 바뀔 수 있음
                 needs_render = true;
             }
             

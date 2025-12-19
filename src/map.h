@@ -17,7 +17,6 @@ typedef enum {
     
     // === 오브젝트 ===
     TILE_BOX = 'B',                 // 상자
-    TILE_DOOR = 'D',                // 도어
     
     // === 스위치 ===
     TILE_SWITCH = 'S',              // 플레이어 스위치
@@ -73,7 +72,7 @@ typedef struct {
         int y;
         TileType type;  // TILE_FIRE_GEM 또는 TILE_WATER_GEM
         bool collected;  // 수집되었는지 여부
-    } gems[MAX_SWITCHES];  // MAX_SWITCHES 재사용 (충분함)
+    } gems[MAX_SWITCHES];  // MAX_SWITCHES 재사용 
 
     // 스위치/도어 정보
     int switch_count;
@@ -85,13 +84,6 @@ typedef struct {
         bool is_box_switch;  // true면 상자 스위치, false면 플레이어 스위치
         char group_id[32];  // 스위치 그룹 ID (예: "PLATFORM_1")
     } switches[MAX_SWITCHES];
-    
-    int door_count;
-    struct {
-        int x;
-        int y;
-        bool is_open;
-    } doors[MAX_DOORS];
 
     // 이동 발판 정보
     int platform_count;
@@ -162,7 +154,6 @@ int map_get_switch_y(const Map* map, int index);
 bool map_is_switch_activated(const Map* map, int index);
 int map_find_switch(const Map* map, int x, int y);
 void map_update_switches(Map* map, int fireboy_x, int fireboy_y, int watergirl_x, int watergirl_y);
-void map_update_doors(Map* map);
 
 // 보석 관련
 int map_find_gem_at(const Map* map, int x, int y);

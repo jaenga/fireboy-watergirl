@@ -287,7 +287,6 @@ void game_loop(const char* player_name) {
         // 맵 오브젝트 업데이트
         map_update_boxes(map, delta_time);
         map_update_switches(map, fireboy.x, fireboy.y, watergirl.x, watergirl.y);
-        map_update_doors(map);
         map_update_platforms(map, delta_time, (struct Player*)&fireboy, (struct Player*)&watergirl);
         map_update_toggle_platforms(map, delta_time);
         map_update_vertical_walls(map, delta_time);
@@ -378,11 +377,7 @@ void game_loop(const char* player_name) {
             console_reset_color();
             fflush(stdout);
             
-            #ifdef PLATFORM_WINDOWS
-            Sleep(3000);
-            #else
             usleep(3000000);
-            #endif
             
             // 마지막 스테이지인지 확인
             if (current_stage >= MAX_STAGE) {
@@ -446,11 +441,7 @@ void game_loop(const char* player_name) {
             console_reset_color();
             fflush(stdout);
             
-            #ifdef PLATFORM_WINDOWS
-            Sleep(500);
-            #else
             usleep(500000);
-            #endif
             
             // 보석 개수 리셋
             player_reset_gem_count();
@@ -558,11 +549,7 @@ void game_loop(const char* player_name) {
         fflush(stdout);
         
         // 프레임 타이밍
-#ifdef PLATFORM_WINDOWS
-        Sleep(50);
-#else
         usleep(50000); // 50ms
-#endif
     }
     
     // 정리

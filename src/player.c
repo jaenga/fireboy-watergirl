@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 // 물리 상수
-#define MOVE_SPEED 3.0f          // 좌우 이동 속도 (타일/초) - 낮을수록 느리게 이동
+#define MOVE_SPEED 3.0f          // 좌우 이동 속도 (타일/초) 
 #define GRAVITY 30.0f             // 중력 가속도 (타일/초²)
 #define JUMP_POWER 18.0f           // 점프 힘 (타일/초)
 #define MAX_FALL_SPEED 20.0f      // 최대 낙하 속도 (타일/초)
@@ -132,8 +132,6 @@ static bool check_ground(const Map* map, int x, int y, bool is_fireboy) {
     if (tile_below == TILE_EMPTY) {
         return false;
     }
-    
-    // 보석은 이제 타일에 없으므로 체크 불필요
     
     // 기타 타일들 (상자, 스위치 등)도 지면으로 간주
     return true;

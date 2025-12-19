@@ -16,22 +16,8 @@ static struct timespec last_key_time[6] = {0}; // fireboy.left, fireboy.right, f
 
 // 현재 시간 가져오기
 static void get_current_time(struct timespec* ts) {
-#ifdef PLATFORM_WINDOWS
-    // Windows
-    FILETIME ft;
-    GetSystemTimeAsFileTime(&ft);
-    ULARGE_INTEGER uli;
-    uli.LowPart = ft.dwLowDateTime;
-    uli.HighPart = ft.dwHighDateTime;
-    // FILETIME은 100-nanosecond intervals since January 1, 1601
-    // timespec은 seconds and nanoseconds since January 1, 1970
-    uli.QuadPart -= 116444736000000000ULL; // Convert to Unix epoch
-    ts->tv_sec = (long)(uli.QuadPart / 10000000ULL);
-    ts->tv_nsec = (long)((uli.QuadPart % 10000000ULL) * 100);
-#else
-    // Unix/macOS
+    // Unix/macOS/Linux
     clock_gettime(CLOCK_MONOTONIC, ts);
-#endif
 }
 
 // 시간 차이 계산 (밀리초)
@@ -41,22 +27,7 @@ static long time_diff_ms(const struct timespec* t1, const struct timespec* t2) {
     return sec_diff * 1000 + nsec_diff / 1000000;
 }
 
-// 논블로킹 문자 입력 처리
-#ifdef PLATFORM_WINDOWS
-int input_getch_non_blocking(void) {
-    if (_kbhit()) {
-        int ch = _getch();
-        // 화살표 키는 두 바이트이므로 첫 바이트는 무시
-        if (ch == 224 || ch == 0) {
-            _getch(); // 두 번째 바이트 버리기
-            return -1;
-        }
-        return ch;
-    }
-    return -1;
-}
-#else
-// Unix/macOS에서 특수 키 입력 처리
+// 논블로킹 문자 입력 처리 (Unix/macOS/Linux)
 int input_getch_non_blocking(void) {
     fd_set readfds;
     struct timeval timeout;
@@ -75,7 +46,6 @@ int input_getch_non_blocking(void) {
     }
     return -1;
 }
-#endif
 
 // 입력 시스템 초기화
 void input_init(void) {
@@ -123,60 +93,7 @@ void input_update(void) {
     struct timespec current_time;
     get_current_time(&current_time);
     
-#ifdef PLATFORM_WINDOWS
-    // Windows: 비동기 키 입력 처리 (모든 입력 버퍼 읽기)
-    while (_kbhit()) {
-        int ch = _getch();
-        
-        // 화살표 키는 두 바이트
-        if (ch == 224 || ch == 0) {
-            ch = _getch();
-            switch (ch) {
-                case KEY_UP_ARROW:
-                    key_states.fireboy.jump = true;
-                    current_input.fireboy.jump = true; // 점프는 이번 프레임에만 true
-                    get_current_time(&last_key_time[2]); // fireboy.jump
-                    break;
-                case KEY_LEFT_ARROW:
-                    key_states.fireboy.left = true;
-                    get_current_time(&last_key_time[0]); // fireboy.left
-                    break;
-                case KEY_RIGHT_ARROW:
-                    key_states.fireboy.right = true;
-                    get_current_time(&last_key_time[1]); // fireboy.right
-                    break;
-            }
-        } else {
-            switch (ch) {
-                case 'w':
-                case 'W':
-                    key_states.watergirl.jump = true;
-                    current_input.watergirl.jump = true; // 점프는 이번 프레임에만 true
-                    get_current_time(&last_key_time[5]); // watergirl.jump
-                    break;
-                case 'a':
-                case 'A':
-                    key_states.watergirl.left = true;
-                    get_current_time(&last_key_time[3]); // watergirl.left
-                    break;
-                case 'd':
-                case 'D':
-                    key_states.watergirl.right = true;
-                    get_current_time(&last_key_time[4]); // watergirl.right
-                    break;
-                case KEY_ESC:
-                    current_input.fireboy.escape = true;
-                    quit_requested = true;
-                    break;
-                case KEY_ENTER:
-                    current_input.fireboy.enter = true;
-                    break;
-            }
-        }
-    }
-    
-#else
-    // Unix/macOS: 비동기 키 입력 처리 (모든 입력 버퍼 읽기)
+    // Unix/macOS/Linux: 비동기 키 입력 처리 (모든 입력 버퍼 읽기)
     int ch;
     while ((ch = input_getch_non_blocking()) != -1) {
         // ESC 시퀀스 처리 (화살표 키)
@@ -254,7 +171,6 @@ void input_update(void) {
             }
         }
     }
-#endif
     
     // 타임아웃 체크: 마지막 입력 시간이 100ms 이상 지나면 false로 설정
     // fireboy.left (인덱스 0)

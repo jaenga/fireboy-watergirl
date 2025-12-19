@@ -34,13 +34,6 @@ Map* map_create(int width, int height) {
         map->switches[i].group_id[0] = '\0';  // 빈 그룹 ID
     }
     
-    map->door_count = 0;
-    for (int i = 0; i < MAX_DOORS; i++) {
-        map->doors[i].x = 0;
-        map->doors[i].y = 0;
-        map->doors[i].is_open = false;
-    }
-    
     // 이동 발판 초기화
     map->platform_count = 0;
     for (int i = 0; i < MAX_PLATFORMS; i++) {
@@ -140,7 +133,6 @@ Map* map_load_from_file(const char* filename) {
     map->box_count = 0;
     map->gem_count = 0;
     map->switch_count = 0;
-    map->door_count = 0;
     map->platform_count = 0;
     map->toggle_platform_count = 0;
     map->vertical_wall_count = 0;
@@ -212,14 +204,6 @@ Map* map_load_from_file(const char* filename) {
                         map->switches[idx].activated = false;
                         map->switches[idx].is_box_switch = true;  // 상자 스위치
                         map->switches[idx].group_id[0] = '\0';  // 일단 빈 그룹 ID
-                    }
-                } else if (ch == TILE_DOOR) {
-                    // 도어 위치 기록
-                    if (map->door_count < MAX_DOORS) {
-                        int idx = map->door_count++;
-                        map->doors[idx].x = x;
-                        map->doors[idx].y = y;
-                        map->doors[idx].is_open = false; // 처음엔 닫혀있음
                     }
                 } else if (ch == TILE_MOVING_PLATFORM) {
                     // 이동 발판 위치 기록 (기본: 위아래 왕복)
@@ -493,10 +477,6 @@ bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy) {
             return !is_fireboy; // Watergirl만 통과 가능
         case TILE_POISON_TERRAIN:
             return true; // 독 지형은 이동 가능하지만 사망함 (player.c에서 처리)
-        case TILE_DOOR:
-            // 도어는 열려있으면 TILE_EMPTY로 바뀌어서 여기까지 오지 않음
-            // 닫혀있으면 TILE_DOOR로 유지되어 막힘
-            return false; // 기본적으로는 막힘
         case TILE_VERTICAL_WALL:
             // V 벽은 통과 불가
             return false;
@@ -787,32 +767,6 @@ void map_update_switches(Map* map, int fireboy_x, int fireboy_y, int watergirl_x
     }
 }
 
-// 도어 열림/닫힘 업데이트 (스위치 상태에 따라)
-void map_update_doors(Map* map) {
-    if (!map) return;
-    
-    // 모든 스위치가 활성화되어 있는지 확인 (간단한 버전: 하나라도 활성화되면 모든 도어 열림)
-    bool any_switch_active = false;
-    for (int i = 0; i < map->switch_count; i++) {
-        if (map->switches[i].activated) {
-            any_switch_active = true;
-            break;
-        }
-    }
-    
-    // 모든 도어 상태 업데이트
-    for (int i = 0; i < map->door_count; i++) {
-        map->doors[i].is_open = any_switch_active;
-        
-        // 도어가 열려있으면 타일을 EMPTY로 변경 (완전히 사라짐)
-        // 닫혀있으면 TILE_DOOR로 유지 (벽처럼 막힘)
-        if (map->doors[i].is_open) {
-            map_set_tile(map, map->doors[i].x, map->doors[i].y, TILE_EMPTY);
-        } else {
-            map_set_tile(map, map->doors[i].x, map->doors[i].y, TILE_DOOR);
-        }
-    }
-}
 
 // 이동 발판 업데이트 (좌우/위아래 왕복 + 위에 있는 플레이어 함께 이동)
 void map_update_platforms(Map* map, float delta_time, struct Player* fireboy, struct Player* watergirl) {
@@ -902,7 +856,7 @@ void map_update_platforms(Map* map, float delta_time, struct Player* fireboy, st
                 if (target_x >= 0 && target_x < map->width &&
                     target_y >= 0 && target_y < map->height) {
                     TileType t = map_get_tile(map, target_x, target_y);
-                    if (t != TILE_WALL && t != TILE_FLOOR && t != TILE_DOOR) {
+                    if (t != TILE_WALL && t != TILE_FLOOR) {
                         pl->x = target_x;
                         pl->y = target_y;
                         // 발판과 함께 이동할 때 수직 속도를 0으로 (중력 무효화)

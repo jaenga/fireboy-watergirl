@@ -1,29 +1,20 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-// 플랫폼 감지
-#ifdef _WIN32
-    #define PLATFORM_WINDOWS
-    #include <windows.h>
-    #include <conio.h>
-#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-    #define PLATFORM_UNIX
-    #include <termios.h>
-    #include <unistd.h>
-    #include <fcntl.h>
-    #include <sys/select.h>
-#endif
+// 플랫폼 감지 (Unix/macOS/Linux만 지원)
+#define PLATFORM_UNIX
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/select.h>
+#include <sys/wait.h>
+#include <signal.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
-
-#ifdef PLATFORM_UNIX
-    #include <sys/wait.h>
-    #include <signal.h>
-#endif
 
 // 기본 상수
 #define MAX_MAP_WIDTH 100
@@ -33,7 +24,6 @@
 // 오브젝트 관련 상수
 #define MAX_BOXES 50      // 한 스테이지에서 관리할 수 있는 최대 상자 개수
 #define MAX_SWITCHES 20   // 한 스테이지에서 관리할 수 있는 최대 스위치 개수
-#define MAX_DOORS 20      // 한 스테이지에서 관리할 수 있는 최대 도어 개수
 #define MAX_PLATFORMS 20  // 한 스테이지에서 관리할 수 있는 최대 이동 발판 개수
 
 // 음악 재생 함수 선언

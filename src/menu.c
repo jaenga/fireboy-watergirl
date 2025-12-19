@@ -210,24 +210,12 @@ MenuResult menu_show_main(void) {
         
         if (player_input.fireboy.up || player_input.watergirl.up) {
             selected = (selected - 1 + menu_count) % menu_count;
-            #ifdef PLATFORM_WINDOWS
-            Sleep(150);
-            #else
             usleep(150000);
-            #endif
         } else if (player_input.fireboy.down || player_input.watergirl.down) {
             selected = (selected + 1) % menu_count;
-            #ifdef PLATFORM_WINDOWS
-            Sleep(150);
-            #else
             usleep(150000);
-            #endif
         } else if (player_input.fireboy.enter || player_input.watergirl.enter) {
-            #ifdef PLATFORM_WINDOWS
-            Sleep(200);
-            #else
             usleep(200000);
-            #endif
             
             switch (selected) {
                 case 0: // 게임하기
@@ -275,11 +263,7 @@ MenuResult menu_show_main(void) {
             last_selected = selected;
         }
         
-        #ifdef PLATFORM_WINDOWS
-        Sleep(50);
-        #else
         usleep(50000);
-        #endif
     }
     
     return result;
@@ -326,11 +310,7 @@ void menu_show_instructions(void) {
         if (inp.fireboy.enter || inp.watergirl.enter || inp.fireboy.escape) {
             break;
         }
-        #ifdef PLATFORM_WINDOWS
-        Sleep(50);
-        #else
         usleep(50000);
-        #endif
     }
 }
 
@@ -699,22 +679,14 @@ void menu_show_final_result(float stage_times[], float total_time, int total_dea
         PlayerInput player_input = input_get_player_input();
         
         if (player_input.fireboy.enter || player_input.watergirl.enter) {
-            #ifdef PLATFORM_WINDOWS
-            Sleep(200);
-            #else
             usleep(200000);
-            #endif
             break;
         }
         
         // 커서 위치 유지 (화면 스크롤 방지)
         console_set_cursor_position(0, 0);
         
-        #ifdef PLATFORM_WINDOWS
-        Sleep(50);
-        #else
         usleep(50000);
-        #endif
     }
 }
 
