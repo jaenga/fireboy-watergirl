@@ -15,7 +15,8 @@ typedef enum {
     TILE_SWITCH = 'S',     // 플레이어 스위치 (Fireboy/Watergirl이 활성화)
     TILE_BOX_SWITCH = 'X', // 상자 스위치 (상자만 활성화 가능)
     TILE_DOOR = 'D',       // 도어
-    TILE_MOVING_PLATFORM = 'P', // 이동 발판
+    TILE_MOVING_PLATFORM = 'P', // 이동 발판 (세로 - 위아래)
+    TILE_HORIZONTAL_PLATFORM = 'H', // 이동 발판 (가로 - 좌우)
     TILE_TOGGLE_PLATFORM = 'T', // 토글 발판 (스위치로 위/아래 이동)
     TILE_TOGGLE_TARGET = 't',   // 토글 발판 목표 위치 (보이지 않음)
     TILE_VERTICAL_WALL = 'V',   // 수직 이동 벽 (박스+스위치로 제어)

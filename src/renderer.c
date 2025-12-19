@@ -191,7 +191,12 @@ void render_tile_with_map(TileType tile, int screen_x, int screen_y, const Map* 
             
         case TILE_MOVING_PLATFORM:
             console_set_color(COLOR_YELLOW, COLOR_BLACK);
-            printf("▄▄"); // 이동 발판 (노란색)
+            printf("▄▄"); // 이동 발판 (노란색, 세로)
+            break;
+            
+        case TILE_HORIZONTAL_PLATFORM:
+            console_set_color(COLOR_YELLOW, COLOR_BLACK);
+            printf("▄▄"); // 이동 발판 (노란색, 가로)
             break;
             
         case TILE_FIRE_GEM:
@@ -448,7 +453,10 @@ void render_map_no_flicker_with_players(const Map* map, int camera_x, int camera
             int sy = py - camera_y;
             
             if (sx >= 0 && sx < tiles_per_row && sy >= 0 && sy < screen_height - 1) {
-                render_tile_with_map(TILE_MOVING_PLATFORM, sx, sy, map, px, py);
+                // vertical 플래그에 따라 다른 타일로 렌더링
+                TileType platform_tile = map->platforms[i].vertical ? 
+                    TILE_MOVING_PLATFORM : TILE_HORIZONTAL_PLATFORM;
+                render_tile_with_map(platform_tile, sx, sy, map, px, py);
             }
             
             // 현재 위치를 다음 프레임의 "이전 위치"로 저장

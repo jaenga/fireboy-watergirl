@@ -244,6 +244,29 @@ Map* map_load_from_file(const char* filename) {
                     }
                     // 발판은 오버레이로만 그려지므로 타일은 빈 칸으로 설정
                     map->tiles[y][x] = TILE_EMPTY;
+                } else if (ch == TILE_HORIZONTAL_PLATFORM) {
+                    // 좌우 이동 발판 위치 기록
+                    if (map->platform_count < MAX_PLATFORMS) {
+                        int idx = map->platform_count++;
+                        map->platforms[idx].x = (float)x;
+                        map->platforms[idx].y = (float)y;
+                        map->platforms[idx].vx = 2.0f; // 오른쪽으로 이동 시작
+                        map->platforms[idx].vy = 0.0f;
+                        map->platforms[idx].vertical = false; // 가로 이동
+                        // 시작 위치 기준으로 좌우 3칸 범위 내에서 왕복 (맵 안으로 클램프)
+                        int range = 3;
+                        int min_x = x - range;
+                        int max_x = x + range;
+                        if (min_x < 0) min_x = 0;
+                        if (max_x >= map->width) max_x = map->width - 1;
+                        map->platforms[idx].min_x = min_x;
+                        map->platforms[idx].max_x = max_x;
+                        map->platforms[idx].min_y = y;
+                        map->platforms[idx].max_y = y;
+                        map->platforms[idx].active = true;
+                    }
+                    // 발판은 오버레이로만 그려지므로 타일은 빈 칸으로 설정
+                    map->tiles[y][x] = TILE_EMPTY;
                 }
             } else {
                 map->tiles[y][x] = TILE_EMPTY;
@@ -458,6 +481,7 @@ bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy) {
         case TILE_BOX_SWITCH:
         case TILE_BOX:
         case TILE_MOVING_PLATFORM:
+        case TILE_HORIZONTAL_PLATFORM:
         case TILE_FIRE_GEM:
         case TILE_WATER_GEM:
         case TILE_FIREBOY_START:  // 시작 위치도 이동 가능
