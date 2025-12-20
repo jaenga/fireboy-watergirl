@@ -134,7 +134,6 @@ typedef struct Player Player;
 Map* map_create(int width, int height);
 void map_destroy(Map* map);
 Map* map_load_from_file(const char* filename);
-bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy);
 TileType map_get_tile(const Map* map, int x, int y);
 void map_set_tile(Map* map, int x, int y, TileType tile);
 

@@ -448,43 +448,6 @@ Map* map_load_from_file(const char* filename) {
 }
 
 // 해당 위치가 이동 가능한지 확인
-bool map_is_walkable(const Map* map, int x, int y, bool is_fireboy) {
-    if (!map || x < 0 || x >= map->width || y < 0 || y >= map->height) {
-        return false;
-    }
-    
-    TileType tile = map->tiles[y][x];
-    
-    switch (tile) {
-        case TILE_EMPTY:
-            return true; // 공백은 공중 이동 가능
-        case TILE_WALL:
-        case TILE_FLOOR:  // 바닥도 벽처럼 통과 불가
-            return false;
-        case TILE_SWITCH:
-        case TILE_BOX_SWITCH:
-        case TILE_BOX:
-        case TILE_MOVING_PLATFORM:
-        case TILE_HORIZONTAL_PLATFORM:
-        case TILE_FIRE_GEM:
-        case TILE_WATER_GEM:
-        case TILE_FIREBOY_START:  // 시작 위치도 이동 가능
-        case TILE_WATERGIRL_START: // 시작 위치도 이동 가능
-            return true;
-        case TILE_FIRE_TERRAIN:
-            return is_fireboy; // Fireboy만 통과 가능
-        case TILE_WATER_TERRAIN:
-            return !is_fireboy; // Watergirl만 통과 가능
-        case TILE_POISON_TERRAIN:
-            return true; // 독 지형은 이동 가능하지만 사망함 (player.c에서 처리)
-        case TILE_VERTICAL_WALL:
-            // V 벽은 통과 불가
-            return false;
-        default:
-            return true;
-    }
-}
-
 // 타일 가져오기
 TileType map_get_tile(const Map* map, int x, int y) {
     if (!map || x < 0 || x >= map->width || y < 0 || y >= map->height) {
@@ -766,7 +729,6 @@ void map_update_switches(Map* map, int fireboy_x, int fireboy_y, int watergirl_x
         }
     }
 }
-
 
 // 이동 발판 업데이트 (좌우/위아래 왕복 + 위에 있는 플레이어 함께 이동)
 void map_update_platforms(Map* map, float delta_time, struct Player* fireboy, struct Player* watergirl) {

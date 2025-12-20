@@ -286,7 +286,6 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                 }
                 
                 // 공백이나 다른 통과 가능한 타일이면 이동
-                // (map_is_walkable 체크는 이미 위에서 벽/바닥 체크를 했으므로 생략)
                 player->x = new_x;
                 vx_accumulator[player_idx] -= move_step;
             } else {
@@ -353,7 +352,6 @@ void player_update(Player* player, Map* map, bool left_pressed, bool right_press
                 }
                 
                 // 공백이나 다른 통과 가능한 타일이면 이동
-                // (map_is_walkable 체크는 이미 위에서 벽/바닥 체크를 했으므로 생략)
                 player->x = new_x;
                 vx_accumulator[player_idx] += move_step; // 음수이므로 더하기
             } else {

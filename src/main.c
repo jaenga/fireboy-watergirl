@@ -266,24 +266,6 @@ void game_loop(const char* player_name) {
         // 입력 가져오기
         PlayerInput input = input_get_player_input();
         
-        // 디버깅: 입력 상태 및 플레이어 위치 확인 (HUD 아래에 표시)
-        console_set_cursor_position(0, 28);
-        console_reset_color();
-        printf("Fireboy: ←=%d →=%d ↑=%d | Watergirl: A=%d D=%d W=%d", 
-               input.fireboy.left, input.fireboy.right, input.fireboy.jump,
-               input.watergirl.left, input.watergirl.right, input.watergirl.jump);
-        // 공백으로 나머지 공간 채우기
-        for (int i = 0; i < 20; i++) printf(" ");
-        
-        // 추가 디버깅: 플레이어 위치 및 상태 (매 프레임)
-        console_set_cursor_position(0, 27);
-        console_reset_color();
-        printf("Fireboy: pos=(%2d,%2d) vy=%.1f ground=%d | Watergirl: pos=(%2d,%2d) vy=%.1f ground=%d", 
-               fireboy.x, fireboy.y, fireboy.vy, fireboy.is_on_ground,
-               watergirl.x, watergirl.y, watergirl.vy, watergirl.is_on_ground);
-        // 공백으로 나머지 공간 채우기
-        for (int i = 0; i < 5; i++) printf(" ");
-        
         // 맵 오브젝트 업데이트
         map_update_boxes(map, delta_time);
         map_update_switches(map, fireboy.x, fireboy.y, watergirl.x, watergirl.y);
